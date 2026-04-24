@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Teacher Dashboard - Wadia Attendance</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #qrContainer { margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>Teacher Dashboard</h1>
+  <button onclick="generateCode()">Generate Code</button>
+  <div id="codeContainer"></div>
+  <h2>Attendance Records</h2>
+  <div id="attendanceList"></div>
+
+  <script>
+    async function generateCode() {
+      const response = await fetch('/generate-code', { method: 'POST' });
+      if (!response.ok) {
+        alert('Error generating code: ' + response.statusText);
+        return;
+      }
+      const data = await response.json();
+      if (data.code) {
+        document.getElementById('codeContainer').innerHTML = `<p>Code: <strong>${data.code}</strong></p>`;
+        setTimeout(() => {
+          document.getElementById('codeContainer').innerHTML = 'Code Expired';
+        }, 60000);
+      } else {
+        alert('Error: ' + (data.error || 'Unknown error'));
+      }
+    }
+
+    async function loadAttendance() {
+      const response = await fetch('/attendance');
+      const data = await response.json();
+      const list = document.getElementById('attendanceList');
+      list.innerHTML = data.map(a => `<p>${a.first_name} ${a.last_name} (${a.prn}) - ${a.marked_at}</p>`).join('');
+    }
+
+    loadAttendance();
+    setInterval(loadAttendance, 5000); // Refresh every 5 seconds
+  </script>
+</body>
+</html>

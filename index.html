@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Wadia Attendance — Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0B1F3A;
+      --navy2:  #122844;
+      --navy3:  #1A3558;
+      --blue:   #1E6FD9;
+      --blue2:  #2B7FEE;
+      --gold:   #E8A020;
+      --gold2:  #F5B940;
+      --white:  #FFFFFF;
+      --off:    #F4F6FA;
+      --muted:  #8A9BB5;
+      --border: rgba(255,255,255,0.10);
+      --err:    #E05555;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--navy);
+      color: var(--white);
+    }
+
+    /* ── Layout ── */
+    .page {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    @media (max-width: 820px) {
+      .page { grid-template-columns: 1fr; }
+      .left-panel { display: none; }
+      .right-panel { padding: 2rem 1.5rem; }
+    }
+
+    /* ── Left branding panel ── */
+    .left-panel {
+      background: var(--navy2);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 3rem;
+    }
+
+    .left-panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 80%, rgba(30,111,217,0.18) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 80% 20%, rgba(232,160,32,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* geometric grid dots */
+    .dots-bg {
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+    }
+
+    /* diagonal accent lines */
+    .left-panel::after {
+      content: '';
+      position: absolute;
+      top: -40%;
+      right: -10%;
+      width: 520px;
+      height: 520px;
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .brand {
+      position: relative;
+      z-index: 1;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 3rem;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    .logo-mark {
+      width: 46px;
+      height: 46px;
+      background: var(--gold);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-mark svg { width: 26px; height: 26px; }
+
+    .logo-text { line-height: 1.2; }
+    .logo-text .college { font-size: 13px; font-weight: 600; color: var(--gold); letter-spacing: 0.05em; text-transform: uppercase; }
+    .logo-text .app { font-size: 15px; font-weight: 500; color: var(--white); }
+
+    .left-heading {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2rem, 3vw, 2.8rem);
+      line-height: 1.18;
+      color: var(--white);
+      margin-bottom: 1.2rem;
+      animation: fadeUp 0.6s 0.1s ease both;
+    }
+
+    .left-heading em {
+      font-style: italic;
+      color: var(--gold2);
+    }
+
+    .left-sub {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 340px;
+      animation: fadeUp 0.6s 0.2s ease both;
+    }
+
+    .feature-list {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      animation: fadeUp 0.6s 0.3s ease both;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .feature-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.10);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .feature-icon svg { width: 16px; height: 16px; }
+
+    .feature-text .ftitle { font-size: 13px; font-weight: 500; color: var(--white); }
+    .feature-text .fsub   { font-size: 12px; color: var(--muted); }
+
+    /* ── Right form panel ── */
+    .right-panel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 3rem;
+      background: var(--navy);
+    }
+
+    .form-box {
+      width: 100%;
+      max-width: 400px;
+      animation: fadeUp 0.5s 0.15s ease both;
+    }
+
+    .mobile-brand {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 820px) {
+      .mobile-brand { display: flex; }
+    }
+
+    /* ── Role toggle ── */
+    .role-toggle {
+      display: flex;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 2rem;
+      gap: 4px;
+    }
+
+    .role-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+    }
+
+    .role-btn svg { width: 15px; height: 15px; opacity: 0.6; transition: opacity 0.22s; }
+
+    .role-btn.active {
+      background: var(--blue);
+      color: var(--white);
+      box-shadow: 0 2px 12px rgba(30,111,217,0.35);
+    }
+
+    .role-btn.active svg { opacity: 1; }
+
+    /* ── Auth tabs ── */
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.8rem;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 0 0 12px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn.active {
+      color: var(--white);
+      border-bottom-color: var(--gold);
+    }
+
+    /* ── Form heading ── */
+    .form-heading {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.9rem;
+      color: var(--white);
+      margin-bottom: 4px;
+    }
+
+    .form-sub {
+      font-size: 13.5px;
+      color: var(--muted);
+      margin-bottom: 1.8rem;
+    }
+
+    /* ── Inputs ── */
+    .field { margin-bottom: 1rem; }
+
+    .field label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .input-wrap { position: relative; }
+
+    .input-wrap svg {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    select {
+      width: 100%;
+      padding: 12px 14px 12px 42px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      color: var(--white);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14.5px;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input::placeholder { color: rgba(255,255,255,0.22); }
+
+    input:focus, select:focus {
+      border-color: var(--blue2);
+      background: rgba(30,111,217,0.08);
+    }
+
+    select option { background: var(--navy2); color: var(--white); }
+
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* password toggle */
+    .pw-toggle {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      padding: 4px;
+      display: flex;
+      align-items: center;
+    }
+
+    .pw-toggle svg { width: 16px; height: 16px; }
+
+    /* ── Error ── */
+    .error-msg {
+      font-size: 12px;
+      color: var(--err);
+      margin-top: 5px;
+      display: none;
+    }
+
+    .field.has-error input { border-color: var(--err); }
+    .field.has-error .error-msg { display: block; }
+
+    /* ── Submit btn ── */
+    .submit-btn {
+      width: 100%;
+      padding: 13px;
+      background: var(--blue);
+      border: none;
+      border-radius: 10px;
+      color: var(--white);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: 0.01em;
+    }
+
+    .submit-btn:hover { background: var(--blue2); }
+    .submit-btn:active { transform: scale(0.985); }
+
+    .submit-btn .arrow {
+      width: 18px;
+      height: 18px;
+      border: 1.5px solid rgba(255,255,255,0.5);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .submit-btn .arrow svg { width: 10px; height: 10px; }
+
+    /* ── Divider ── */
+    .or-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 1.2rem 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .or-divider::before,
+    .or-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255,255,255,0.10);
+    }
+
+    /* ── Forgot / helper links ── */
+    .helper-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: -6px;
+      margin-bottom: 1rem;
+    }
+
+    .link-btn {
+      background: none;
+      border: none;
+      color: var(--blue2);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    .link-btn:hover { color: var(--gold2); }
+
+    /* ── Success toast ── */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1A4D2E;
+      border: 1px solid #2D7D4E;
+      color: #6EDEA0;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-panel { display: none; }
+    .form-panel.active { display: block; animation: fadeUp 0.3s ease both; }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ═══ LEFT PANEL ═══ -->
+  <div class="left-panel">
+    <div class="dots-bg"></div>
+
+    <div class="brand">
+      <div class="brand-logo">
+        <div class="logo-mark">
+          <!-- graduation cap icon -->
+          <svg viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 4L2 10l11 6 11-6-11-6z" fill="#0B1F3A" stroke="#0B1F3A" stroke-linejoin="round"/>
+            <path d="M6 13v5c0 2.5 3 4 7 4s7-1.5 7-4v-5" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="24" y1="10" x2="24" y2="16" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <div class="college">Wadia College of Engineering</div>
+          <div class="app">Attendance System</div>
+        </div>
+      </div>
+
+      <h1 class="left-heading">
+        Smart attendance<br/>for <em>every</em> lecture.
+      </h1>
+      <p class="left-sub">
+        QR-based attendance marking for students and teachers — fast, secure, and automatic.
+      </p>
+    </div>
+
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="var(--gold)" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="var(--gold)" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="var(--gold)" stroke-width="1.3"/><rect x="10.5" y="10.5" width="2" height="2" rx="0.3" fill="var(--gold)"/></svg>
+        </div>
+        <div class="feature-text">
+          <div class="ftitle">40-second QR codes</div>
+          <div class="fsub">Auto-expiry prevents proxy attendance</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 100 8A4 4 0 008 2z" stroke="#4FC8A0" stroke-width="1.3"/><path d="M3 14c0-2.2 2.2-4 5-4s5 1.8 5 4" stroke="#4FC8A0" stroke-width="1.3" stroke-linecap="round"/></svg>
+        </div>
+        <div class="feature-text">
+          <div class="ftitle">Separate teacher & student portals</div>
+          <div class="fsub">Role-based access from day one</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M2 12V5l6-3 6 3v7" stroke="#7BA5E8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="8" width="4" height="4" rx="0.5" stroke="#7BA5E8" stroke-width="1.3"/></svg>
+        </div>
+        <div class="feature-text">
+          <div class="ftitle">Live attendance percentage</div>
+          <div class="fsub">Students see subject-wise stats anytime</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ RIGHT PANEL ═══ -->
+  <div class="right-panel">
+    <div class="form-box">
+
+      <!-- Mobile brand -->
+      <div class="mobile-brand">
+        <div class="logo-mark" style="width:36px;height:36px;border-radius:8px;">
+          <svg viewBox="0 0 26 26" fill="none" width="20" height="20"><path d="M13 4L2 10l11 6 11-6-11-6z" fill="#0B1F3A"/><path d="M6 13v5c0 2.5 3 4 7 4s7-1.5 7-4v-5" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+        <div class="logo-text">
+          <div class="college" style="font-size:11px;color:var(--gold)">Wadia College of Engineering</div>
+          <div class="app" style="font-size:13px;">Attendance System</div>
+        </div>
+      </div>
+
+      <!-- Role toggle -->
+      <div class="role-toggle">
+        <button class="role-btn active" id="roleStudent" onclick="setRole('student')">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a3 3 0 100 6A3 3 0 008 2z" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-2 2.5-3.5 6-3.5S14 12 14 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Student
+        </button>
+        <button class="role-btn" id="roleTeacher" onclick="setRole('teacher')">
+          <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 14h6M8 11v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          Teacher
+        </button>
+      </div>
+
+      <!-- Auth tabs -->
+      <div class="auth-tabs">
+        <button class="tab-btn active" id="tabLogin" onclick="setTab('login')">Log in</button>
+        <button class="tab-btn" id="tabSignup" onclick="setTab('signup')">Sign up</button>
+      </div>
+
+      <!-- ── LOGIN PANEL ── -->
+      <div class="form-panel active" id="panelLogin">
+        <h2 class="form-heading">Welcome back</h2>
+        <p class="form-sub" id="loginSub">Log in to your student account</p>
+
+        <div class="field" id="fieldLoginEmail">
+          <label>Email address</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M1 5l7 5 7-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <input type="email" placeholder="you@wadia.ac.in" id="loginEmail"/>
+          </div>
+          <span class="error-msg">Please enter a valid email address.</span>
+        </div>
+
+        <div class="field" id="fieldLoginPw">
+          <label>Password</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <input type="password" placeholder="Enter your password" id="loginPw"/>
+            <button class="pw-toggle" onclick="togglePw('loginPw', this)" type="button">
+              <svg viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="6" ry="4" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <span class="error-msg">Password is required.</span>
+        </div>
+
+        <div class="helper-row">
+          <button class="link-btn">Forgot password?</button>
+        </div>
+
+        <button class="submit-btn" onclick="handleLogin()">
+          Log in
+          <span class="arrow">
+            <svg viewBox="0 0 10 10" fill="none"><path d="M2 5h6M6 3l2 2-2 2" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </button>
+      </div>
+
+      <!-- ── SIGNUP PANEL ── -->
+      <div class="form-panel" id="panelSignup">
+        <h2 class="form-heading">Create account</h2>
+        <p class="form-sub" id="signupSub">Sign up as a student</p>
+
+        <div class="field-row">
+          <div class="field" id="fieldFname">
+            <label>First name</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a3 3 0 100 6A3 3 0 008 2z" stroke="currentColor" stroke-width="1.3"/><path d="M2 14c0-2 2.5-3.5 6-3.5S14 12 14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <input type="text" placeholder="Ravi" id="signupFname"/>
+            </div>
+            <span class="error-msg">Required.</span>
+          </div>
+          <div class="field" id="fieldLname">
+            <label>Last name</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M8 2a3 3 0 100 6A3 3 0 008 2z" stroke="currentColor" stroke-width="1.3"/><path d="M2 14c0-2 2.5-3.5 6-3.5S14 12 14 14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <input type="text" placeholder="Sharma" id="signupLname"/>
+            </div>
+            <span class="error-msg">Required.</span>
+          </div>
+        </div>
+
+        <div class="field" id="fieldSignupEmail">
+          <label>College email</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M1 5l7 5 7-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <input type="email" placeholder="you@wadia.ac.in" id="signupEmail"/>
+          </div>
+          <span class="error-msg">Enter a valid email.</span>
+        </div>
+
+        <!-- Student-only fields -->
+        <div id="studentFields">
+          <div class="field-row">
+            <div class="field" id="fieldPrn">
+              <label>PRN number</label>
+              <div class="input-wrap">
+                <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h4M5 10.5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <input type="text" placeholder="72XXXXXXXXXX" id="signupPrn"/>
+              </div>
+              <span class="error-msg">Required.</span>
+            </div>
+            <div class="field" id="fieldYear">
+              <label>Year</label>
+              <div class="input-wrap">
+                <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 3V1M11 3V1M2 7h12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <select id="signupYear">
+                  <option value="" disabled selected>Select</option>
+                  <option>FE</option><option>SE</option><option>TE</option><option>BE</option>
+                </select>
+              </div>
+              <span class="error-msg">Required.</span>
+            </div>
+          </div>
+
+          <div class="field" id="fieldDept">
+            <label>Department</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M2 14V5l6-3 6 3v9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="9" width="4" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/></svg>
+              <select id="signupDept">
+                <option value="" disabled selected>Select department</option>
+                <option>Computer Engineering 1</option>
+                <option>Computer Engineering 2</option>
+                <option>Computer Engineering 3</option>
+                <option>Computer Engineering 4</option>
+                <option>Electronics & Telecom 1</option>
+                <option>Electronics & Telecom 2</option>
+                <option>Mechanical Engineering 1</option>
+                <option>Mechanical Engineering 2</option>
+                <option>automation and robotics</option>
+              </select>
+            </div>
+            <span class="error-msg">Required.</span>
+          </div>
+        </div>
+
+        <!-- Teacher-only fields -->
+        <div id="teacherFields" style="display:none">
+          <div class="field" id="fieldEmpId">
+            <label>Employee ID</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <input type="text" placeholder="WCE-T-XXX" id="signupEmpId"/>
+            </div>
+            <span class="error-msg">Required.</span>
+          </div>
+          <div class="field" id="fieldTeacherDept">
+            <label>Department</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M2 14V5l6-3 6 3v9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="9" width="4" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/></svg>
+              <select id="signupTeacherDept">
+                <option value="" disabled selected>Select department</option>
+                <option>Computer Engineering 1</option>
+                <option>Computer Engineering 2</option>
+                <option>Computer Engineering 3</option>
+                <option>Computer Engineering 4</option>
+                <option>Electronics & Telecom 1</option>
+                <option>Electronics & Telecom 2</option>
+                <option>Mechanical Engineering 1</option>
+                <option>Mechanical Engineering 2</option>
+                <option>automation and robotics</option>
+              </select>
+            </div>
+            <span class="error-msg">Required.</span>
+          </div>
+        </div>
+
+        <div class="field" id="fieldSignupPw">
+          <label>Password</label>
+          <div class="input-wrap">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <input type="password" placeholder="Min. 8 characters" id="signupPw"/>
+            <button class="pw-toggle" onclick="togglePw('signupPw', this)" type="button">
+              <svg viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="6" ry="4" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <span class="error-msg">Password must be at least 8 characters.</span>
+        </div>
+
+        <button class="submit-btn" onclick="handleSignup()">
+          Create account
+          <span class="arrow">
+            <svg viewBox="0 0 10 10" fill="none"><path d="M2 5h6M6 3l2 2-2 2" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  let currentRole = 'student';
+  let currentTab  = 'login';
+
+  function setRole(role) {
+    currentRole = role;
+    document.getElementById('roleStudent').classList.toggle('active', role === 'student');
+    document.getElementById('roleTeacher').classList.toggle('active', role === 'teacher');
+
+    const sub = role === 'student' ? 'student' : 'teacher';
+    document.getElementById('loginSub').textContent  = `Log in to your ${sub} account`;
+    document.getElementById('signupSub').textContent = `Sign up as a ${sub}`;
+
+    document.getElementById('studentFields').style.display = role === 'student' ? '' : 'none';
+    document.getElementById('teacherFields').style.display = role === 'teacher' ? '' : 'none';
+  }
+
+  function setTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+    document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
+    document.getElementById('panelLogin').classList.toggle('active', tab === 'login');
+    document.getElementById('panelSignup').classList.toggle('active', tab === 'signup');
+    clearErrors();
+  }
+
+  function togglePw(id, btn) {
+    const inp = document.getElementById(id);
+    const isText = inp.type === 'text';
+    inp.type = isText ? 'password' : 'text';
+    btn.style.opacity = isText ? '0.5' : '1';
+  }
+
+  function setError(fieldId, hasError) {
+    document.getElementById(fieldId).classList.toggle('has-error', hasError);
+  }
+
+  function clearErrors() {
+    document.querySelectorAll('.field').forEach(f => f.classList.remove('has-error'));
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function handleLogin() {
+    clearErrors();
+    let ok = true;
+    const email = document.getElementById('loginEmail').value.trim();
+    const pw    = document.getElementById('loginPw').value;
+
+    if (!email || !/\S+@\S+\.\S+/.test(email)) { setError('fieldLoginEmail', true); ok = false; }
+    if (!pw) { setError('fieldLoginPw', true); ok = false; }
+
+    if (ok) {
+      fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pw })
+      })
+      .then(async res => {
+        const contentType = res.headers.get('content-type') || '';
+        let data;
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const text = await res.text();
+          data = { success: false, message: text || 'Unexpected server response' };
+        }
+        return { ok: res.ok, data };
+      })
+      .then(({ ok, data }) => {
+        if (!ok && !data.message) {
+          data.message = 'Login request failed';
+        }
+        if (data.success) {
+          showToast(`✓ Logged in as ${currentRole}!`);
+          setTimeout(() => window.location.reload(), 1000); // Reload to go to dashboard
+        } else {
+          showToast('Login failed: ' + data.message);
+        }
+      })
+      .catch(err => showToast('Error: ' + err.message));
+    }
+  }
+
+  function handleSignup() {
+    clearErrors();
+    let ok = true;
+
+    const fname = document.getElementById('signupFname').value.trim();
+    const lname = document.getElementById('signupLname').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const pw    = document.getElementById('signupPw').value;
+
+    if (!fname) { setError('fieldFname', true); ok = false; }
+    if (!lname) { setError('fieldLname', true); ok = false; }
+    if (!email || !/\S+@\S+\.\S+/.test(email)) { setError('fieldSignupEmail', true); ok = false; }
+    if (pw.length < 8) { setError('fieldSignupPw', true); ok = false; }
+
+    let prn, year, dept, empId, teacherDept;
+    if (currentRole === 'student') {
+      prn = document.getElementById('signupPrn').value.trim();
+      year = document.getElementById('signupYear').value;
+      dept = document.getElementById('signupDept').value;
+      if (!prn) { setError('fieldPrn', true); ok = false; }
+      if (!year) { setError('fieldYear', true); ok = false; }
+      if (!dept) { setError('fieldDept', true); ok = false; }
+    } else {
+      empId = document.getElementById('signupEmpId').value.trim();
+      teacherDept = document.getElementById('signupTeacherDept').value;
+      if (!empId) { setError('fieldEmpId', true); ok = false; }
+      if (!teacherDept) { setError('fieldTeacherDept', true); ok = false; }
+    }
+
+    if (ok) {
+      const body = { role: currentRole, firstName: fname, lastName: lname, email, password: pw };
+      if (currentRole === 'student') {
+        body.prn = prn;
+        body.year = year;
+        body.department = dept;
+      } else {
+        body.department = teacherDept;
+        body.empId = empId;
+      }
+      fetch('/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      .then(async res => {
+        const contentType = res.headers.get('content-type') || '';
+        let data;
+        if (contentType.includes('application/json')) {
+          data = await res.json();
+        } else {
+          const text = await res.text();
+          data = { success: false, message: text || 'Unexpected server response' };
+        }
+        return { ok: res.ok, data };
+      })
+      .then(({ ok, data }) => {
+        if (!ok && !data.message) {
+          data.message = 'Signup request failed';
+        }
+        if (data.success) {
+          showToast(`✓ Account created! You can now log in.`);
+          setTimeout(() => setTab('login'), 1200);
+        } else {
+          showToast('Signup failed: ' + data.message);
+        }
+      })
+      .catch(err => showToast('Error: ' + err.message));
+    }
+  }
+</script>
+</body>
+</html>

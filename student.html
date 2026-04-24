@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student Dashboard - Wadia Attendance</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Student Dashboard</h1>
+  <p>Enter the 5-digit code from the teacher to mark attendance.</p>
+  <input type="text" id="codeInput" placeholder="Enter 5-digit code" maxlength="5">
+  <button onclick="markAttendance()">Mark Attendance</button>
+  <h2>Your Attendance</h2>
+  <div id="myAttendance"></div>
+
+  <script>
+    async function markAttendance() {
+      const code = document.getElementById('codeInput').value;
+      if (!code || code.length !== 5) {
+        alert('Please enter a valid 5-digit code');
+        return;
+      }
+      const response = await fetch('/mark-attendance-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const msg = await response.text();
+      alert(msg);
+      if (response.ok) {
+        document.getElementById('codeInput').value = '';
+        loadMyAttendance(); // Refresh attendance
+      }
+    }
+
+    async function loadMyAttendance() {
+      try {
+        const response = await fetch('/my-attendance');
+        if (!response.ok) {
+          document.getElementById('myAttendance').innerHTML = '<p>Error loading attendance.</p>';
+          return;
+        }
+        const data = await response.json();
+        if (data.length === 0) {
+          document.getElementById('myAttendance').innerHTML = '<p>No attendance records yet.</p>';
+        } else {
+          const list = data.map(a => `<p>${a.marked_at} - ${a.subject || 'Lecture'} by ${a.teacher_fname} ${a.teacher_lname}</p>`).join('');
+          document.getElementById('myAttendance').innerHTML = list;
+        }
+      } catch (error) {
+        document.getElementById('myAttendance').innerHTML = '<p>Error loading attendance.</p>';
+      }
+    }
+
+    loadMyAttendance();
+  </script>
+</body>
+</html>
