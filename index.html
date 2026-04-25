@@ -818,8 +818,8 @@
           data.message = 'Login request failed';
         }
         if (data.success) {
-          showToast(`✓ Logged in as ${currentRole}!`);
-          setTimeout(() => window.location.reload(), 1000); // Reload to go to dashboard
+          showToast(`✓ Logged in as ${data.role}!`);
+          setTimeout(() => window.location.href = data.role === 'teacher' ? 'teacher.html' : 'student.html', 1000);
         } else {
           showToast('Login failed: ' + data.message);
         }

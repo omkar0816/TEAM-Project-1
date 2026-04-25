@@ -2,23 +2,327 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Student Dashboard - Wadia Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0B1F3A;
+      --navy2:  #122844;
+      --navy3:  #1A3558;
+      --blue:   #1E6FD9;
+      --blue2:  #2B7FEE;
+      --gold:   #E8A020;
+      --gold2:  #F5B940;
+      --white:  #FFFFFF;
+      --off:    #F4F6FA;
+      --muted:  #8A9BB5;
+      --border: rgba(255,255,255,0.10);
+      --err:    #E05555;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 100%);
+      color: var(--white);
+      overflow-x: hidden;
+    }
+
+    body {
+      position: relative;
+    }
+
+    /* Background patterns */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 80%, rgba(30,111,217,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 80% 20%, rgba(232,160,32,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .dots-bg {
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    /* Layout */
+    .dashboard {
+      min-height: 100vh;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-mark {
+      width: 40px;
+      height: 40px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-mark svg { width: 22px; height: 22px; }
+
+    .logo-text {
+      font-size: 14px;
+      color: var(--white);
+    }
+
+    .logo-text .college {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .logout-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--white);
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255,255,255,0.15);
+      border-color: var(--blue2);
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      .main-content { grid-template-columns: 1fr; }
+    }
+
+    .section {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .section h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.5rem;
+      color: var(--gold2);
+      margin-bottom: 1rem;
+    }
+
+    .code-input {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .code-input input {
+      flex: 1;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--white);
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .code-input input:focus {
+      border-color: var(--blue2);
+    }
+
+    .code-input input::placeholder {
+      color: var(--muted);
+    }
+
+    .btn {
+      background: var(--blue);
+      border: none;
+      border-radius: 8px;
+      color: var(--white);
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      background: var(--blue2);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(30,111,217,0.3);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .attendance-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .attendance-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .attendance-item:last-child {
+      border-bottom: none;
+    }
+
+    .attendance-date {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .attendance-subject {
+      color: var(--white);
+      font-weight: 500;
+    }
+
+    .coming-soon {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section {
+      animation: fadeIn 0.5s ease both;
+    }
+
+    .section:nth-child(1) { animation-delay: 0.1s; }
+    .section:nth-child(2) { animation-delay: 0.2s; }
+    .section:nth-child(3) { animation-delay: 0.3s; }
   </style>
 </head>
 <body>
-  <h1>Student Dashboard</h1>
-  <p>Enter the 5-digit code from the teacher to mark attendance.</p>
-  <input type="text" id="codeInput" placeholder="Enter 5-digit code" maxlength="5">
-  <button onclick="markAttendance()">Mark Attendance</button>
-  <h2>Your Attendance</h2>
-  <div id="myAttendance"></div>
+  <div class="dots-bg"></div>
+
+  <div class="dashboard">
+    <header class="header">
+      <div class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 4L2 10l11 6 11-6-11-6z" fill="#0B1F3A" stroke="#0B1F3A" stroke-linejoin="round"/>
+            <path d="M6 13v5c0 2.5 3 4 7 4s7-1.5 7-4v-5" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="24" y1="10" x2="24" y2="16" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <div class="college">Wadia College of Engineering</div>
+          <div>Student Dashboard</div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </header>
+
+    <div class="main-content">
+      <div class="section">
+        <h2>Mark Attendance</h2>
+        <p style="color: var(--muted); margin-bottom: 1rem;">Enter the 5-digit code provided by your teacher to mark your attendance.</p>
+        <div class="code-input">
+          <input type="text" id="codeInput" placeholder="Enter 5-digit code" maxlength="5" pattern="[0-9]{5}">
+          <button class="btn" onclick="markAttendance()">
+            Mark Attendance
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 8h12M8 2l6 6-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Recent Attendance</h2>
+        <div id="myAttendance">
+          <p style="color: var(--muted);">Loading...</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Monthly Summary</h2>
+        <div class="coming-soon">
+          <p>Average attendance in month: <strong>--</strong></p>
+          <p>Attendance per lecture: <strong>--</strong></p>
+          <p style="margin-top: 1rem; font-size: 14px;">Coming soon...</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Quick Stats</h2>
+        <div class="coming-soon">
+          <p>Total lectures attended: <strong>--</strong></p>
+          <p>Attendance percentage: <strong>--</strong></p>
+          <p style="margin-top: 1rem; font-size: 14px;">Coming soon...</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
+    fetch('/check-session').then(res => res.json()).then(data => {
+      if (!data.loggedIn || data.role !== 'student') {
+        window.location.href = '/';
+      }
+    });
+
+    async function logout() {
+      await fetch('/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
     async function markAttendance() {
       const code = document.getElementById('codeInput').value;
-      if (!code || code.length !== 5) {
+      if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
         alert('Please enter a valid 5-digit code');
         return;
       }
@@ -31,7 +335,7 @@
       alert(msg);
       if (response.ok) {
         document.getElementById('codeInput').value = '';
-        loadMyAttendance(); // Refresh attendance
+        loadMyAttendance();
       }
     }
 
@@ -39,18 +343,26 @@
       try {
         const response = await fetch('/my-attendance');
         if (!response.ok) {
-          document.getElementById('myAttendance').innerHTML = '<p>Error loading attendance.</p>';
+          document.getElementById('myAttendance').innerHTML = '<p style="color: var(--err);">Error loading attendance.</p>';
           return;
         }
         const data = await response.json();
         if (data.length === 0) {
-          document.getElementById('myAttendance').innerHTML = '<p>No attendance records yet.</p>';
+          document.getElementById('myAttendance').innerHTML = '<p style="color: var(--muted);">No attendance records yet.</p>';
         } else {
-          const list = data.map(a => `<p>${a.marked_at} - ${a.subject || 'Lecture'} by ${a.teacher_fname} ${a.teacher_lname}</p>`).join('');
+          const list = data.map(a => `
+            <div class="attendance-item">
+              <div>
+                <div class="attendance-subject">${a.subject || 'Lecture'}</div>
+                <div class="attendance-date">${new Date(a.marked_at).toLocaleString()}</div>
+              </div>
+              <div style="color: var(--gold2); font-weight: 500;">Present</div>
+            </div>
+          `).join('');
           document.getElementById('myAttendance').innerHTML = list;
         }
       } catch (error) {
-        document.getElementById('myAttendance').innerHTML = '<p>Error loading attendance.</p>';
+        document.getElementById('myAttendance').innerHTML = '<p style="color: var(--err);">Error loading attendance.</p>';
       }
     }
 

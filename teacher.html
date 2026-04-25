@@ -9,13 +9,28 @@
   </style>
 </head>
 <body>
+  <script>
+    fetch('/check-session').then(res => res.json()).then(data => {
+      if (!data.loggedIn || data.role !== 'teacher') {
+        window.location.href = '/';
+      }
+    });
+  </script>
   <h1>Teacher Dashboard</h1>
+  <button onclick="logout()">Logout</button>
   <button onclick="generateCode()">Generate Code</button>
   <div id="codeContainer"></div>
   <h2>Attendance Records</h2>
   <div id="attendanceList"></div>
 
   <script>
+    async function logout() {
+      await fetch('/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
+    let countdownInterval;
+
     async function generateCode() {
       const response = await fetch('/generate-code', { method: 'POST' });
       if (!response.ok) {
@@ -24,10 +39,16 @@
       }
       const data = await response.json();
       if (data.code) {
-        document.getElementById('codeContainer').innerHTML = `<p>Code: <strong>${data.code}</strong></p>`;
-        setTimeout(() => {
-          document.getElementById('codeContainer').innerHTML = 'Code Expired';
-        }, 60000);
+        document.getElementById('codeContainer').innerHTML = `<p>Code: <strong>${data.code}</strong></p><p>Expires in: <span id="countdown">50</span> seconds</p>`;
+        let timeLeft = 50;
+        countdownInterval = setInterval(() => {
+          timeLeft--;
+          document.getElementById('countdown').textContent = timeLeft;
+          if (timeLeft <= 0) {
+            clearInterval(countdownInterval);
+            document.getElementById('codeContainer').innerHTML = 'Code Expired';
+          }
+        }, 1000);
       } else {
         alert('Error: ' + (data.error || 'Unknown error'));
       }

@@ -80,13 +80,18 @@ app.post('/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// Check session
+app.get('/check-session', (req, res) => {
+  res.json({ loggedIn: !!req.session.userId, role: req.session.role });
+});
+
 // Generate Code (for teachers)
 app.post('/generate-code', (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   const code = Math.floor(10000 + Math.random() * 90000).toString();
-  const expiresAt = new Date(Date.now() + 60 * 1000); // 1 minute
+  const expiresAt = new Date(Date.now() + 50 * 1000); // 50 seconds
   db.run('INSERT INTO qr_codes (id, teacher_id, expires_at) VALUES (?, ?, ?)', [code, req.session.userId, expiresAt.toISOString()], (err) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
