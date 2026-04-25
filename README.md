@@ -51,18 +51,30 @@ A modern web-based attendance management system for Wadia College of Engineering
 
 4. Open your browser and navigate to `http://localhost:3000`
 
-## Usage
+## Student Data Import
 
-1. **Sign Up**: Create an account as either a student or teacher
-2. **Login**: Use your credentials to log in
-3. **Teacher Workflow**:
-   - Click "Generate Code" to create a 5-digit attendance code
-   - Share the code with students (valid for 50 seconds)
-   - View attendance records in real-time
-4. **Student Workflow**:
-   - Enter the 5-digit code provided by the teacher
-   - Mark your attendance before the code expires
-   - View your attendance history
+To pre-populate the system with your class student data:
+
+1. **Prepare CSV File**: Create a CSV file with student information in this format:
+   ```
+   Name,Email,PRN,Year,Department
+   "John Doe",john.doe@wadia.ac.in,72123456789,FE,Computer Engineering 1
+   "Jane Smith",jane.smith@wadia.ac.in,72123456790,FE,Electronics & Telecom 1
+   ```
+
+2. **Import Students**:
+   ```bash
+   node import_students.js your_students.csv
+   ```
+
+3. **Default Login**: Students can login with:
+   - **Email**: Their college email
+   - **Password**: Their PRN number (can be changed later)
+
+### Sample Data
+A sample CSV file (`sample_students.csv`) is included for testing.
+
+**Note**: The import script will skip duplicate emails and provide a summary of imported/skipped students.
 
 ## Database Schema
 
