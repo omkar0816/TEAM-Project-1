@@ -178,6 +178,81 @@ app.get('/attendance', (req, res) => {
   });
 });
 
+// Get live count for active code
+app.get('/live-count', (req, res) => {
+  const { code } = req.query;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
+  }
+
+  db.get('SELECT id FROM qr_codes WHERE id = ? AND expires_at > datetime("now")', [code], (err, codeRow) => {
+    if (err || !codeRow) {
+      return res.json({ count: 0 });
+    }
+
+    db.get('SELECT COUNT(*) as count FROM attendance WHERE qr_id = ?', [code], (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ count: result.count });
+    });
+  });
+});
+
+// Get teacher statistics
+app.get('/teacher-stats', (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const teacherId = req.session.userId;
+
+  // Get total lectures (unique QR codes generated)
+  db.get('SELECT COUNT(DISTINCT id) as totalLectures FROM qr_codes WHERE teacher_id = ?', [teacherId], (err, lectures) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+
+    // Get total attendance count
+    db.get(`
+      SELECT COUNT(*) as totalAttendance
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      WHERE q.teacher_id = ?
+    `, [teacherId], (err, attendance) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+
+      // Get unique students count
+      db.get(`
+        SELECT COUNT(DISTINCT a.student_id) as uniqueStudents
+        FROM attendance a
+        JOIN qr_codes q ON a.qr_id = q.id
+        WHERE q.teacher_id = ?
+      `, [teacherId], (err, students) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+
+        // Calculate average attendance percentage
+        const totalLectures = lectures.totalLectures || 0;
+        const totalAttendance = attendance.totalAttendance || 0;
+        const uniqueStudents = students.uniqueStudents || 0;
+
+        let avgAttendance = 0;
+        if (totalLectures > 0 && uniqueStudents > 0) {
+          // This is a simplified calculation - in reality you'd need class size per lecture
+          // For now, we'll assume each lecture has the same number of potential students
+          avgAttendance = Math.round((totalAttendance / (totalLectures * uniqueStudents)) * 100);
+          avgAttendance = Math.min(avgAttendance, 100); // Cap at 100%
+        }
+
+        res.json({
+          totalLectures: totalLectures,
+          totalAttendance: totalAttendance,
+          avgAttendance: avgAttendance,
+          uniqueStudents: uniqueStudents
+        });
+      });
+    });
+  });
+});
+
 // Get attendance for student
 app.get('/my-attendance', (req, res) => {
   if (!req.session.userId || req.session.role !== 'student') {

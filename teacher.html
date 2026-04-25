@@ -2,67 +2,607 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Teacher Dashboard - Wadia Attendance</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    #qrContainer { margin: 20px 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0B1F3A;
+      --navy2:  #122844;
+      --navy3:  #1A3558;
+      --blue:   #1E6FD9;
+      --blue2:  #2B7FEE;
+      --gold:   #E8A020;
+      --gold2:  #F5B940;
+      --white:  #FFFFFF;
+      --off:    #F4F6FA;
+      --muted:  #8A9BB5;
+      --border: rgba(255,255,255,0.10);
+      --err:    #E05555;
+      --success: #4CAF50;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 100%);
+      color: var(--white);
+      overflow-x: hidden;
+    }
+
+    body {
+      position: relative;
+    }
+
+    /* Background patterns */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 80%, rgba(30,111,217,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 80% 20%, rgba(232,160,32,0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .dots-bg {
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    /* Layout */
+    .dashboard {
+      min-height: 100vh;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-mark {
+      width: 40px;
+      height: 40px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-mark svg { width: 22px; height: 22px; }
+
+    .logo-text {
+      font-size: 14px;
+      color: var(--white);
+    }
+
+    .logo-text .college {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .logout-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--white);
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255,255,255,0.15);
+      border-color: var(--blue2);
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      .main-content { grid-template-columns: 1fr; }
+    }
+
+    .section {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .section h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.5rem;
+      color: var(--gold2);
+      margin-bottom: 1rem;
+    }
+
+    /* Code Generation Section */
+    .code-section {
+      text-align: center;
+    }
+
+    .generate-btn {
+      background: var(--blue);
+      border: none;
+      border-radius: 12px;
+      color: var(--white);
+      padding: 16px 32px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 1rem;
+    }
+
+    .generate-btn:hover {
+      background: var(--blue2);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(30,111,217,0.4);
+    }
+
+    .generate-btn:disabled {
+      background: var(--muted);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .code-display {
+      background: rgba(255,255,255,0.08);
+      border: 2px solid var(--gold);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 1rem 0;
+      display: none;
+    }
+
+    .code-number {
+      font-size: 3rem;
+      font-weight: bold;
+      color: var(--gold2);
+      letter-spacing: 8px;
+      margin-bottom: 0.5rem;
+    }
+
+    .code-timer {
+      font-size: 1.2rem;
+      color: var(--white);
+      margin-bottom: 1rem;
+    }
+
+    .live-counter {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 1.1rem;
+      color: var(--success);
+      margin-top: 1rem;
+    }
+
+    .counter-number {
+      font-size: 2rem;
+      font-weight: bold;
+      color: var(--gold2);
+    }
+
+    /* Stats Section */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: var(--gold2);
+      display: block;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+
+    /* Attendance List */
+    .attendance-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .lecture-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .lecture-header {
+      background: rgba(255,255,255,0.08);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .lecture-title {
+      font-weight: 600;
+      color: var(--gold2);
+    }
+
+    .lecture-count {
+      background: var(--blue);
+      color: var(--white);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .student-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+
+    .student-item:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .student-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .student-name {
+      font-weight: 500;
+      color: var(--white);
+    }
+
+    .student-details {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .attendance-time {
+      font-size: 0.85rem;
+      color: var(--gold);
+    }
+
+    .no-attendance {
+      text-align: center;
+      color: var(--muted);
+      padding: 2rem;
+      font-style: italic;
+    }
+
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .section {
+      animation: fadeIn 0.5s ease both;
+    }
+
+    .live-counter .counter-number {
+      animation: pulse 2s infinite;
+    }
+
+    .section:nth-child(1) { animation-delay: 0.1s; }
+    .section:nth-child(2) { animation-delay: 0.2s; }
+    .section:nth-child(3) { animation-delay: 0.3s; }
+    .section:nth-child(4) { animation-delay: 0.4s; }
   </style>
 </head>
 <body>
+  <div class="dots-bg"></div>
+
+  <div class="dashboard">
+    <header class="header">
+      <div class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 4L2 10l11 6 11-6-11-6z" fill="#0B1F3A" stroke="#0B1F3A" stroke-linejoin="round"/>
+            <path d="M6 13v5c0 2.5 3 4 7 4s7-1.5 7-4v-5" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="24" y1="10" x2="24" y2="16" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <div class="college">Wadia College of Engineering</div>
+          <div>Teacher Dashboard</div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </header>
+
+    <div class="main-content">
+      <!-- Code Generation -->
+      <div class="section code-section">
+        <h2>Generate Attendance Code</h2>
+        <button class="generate-btn" id="generateBtn" onclick="generateCode()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Generate Code
+        </button>
+        <div class="code-display" id="codeDisplay">
+          <div class="code-number" id="codeNumber"></div>
+          <div class="code-timer" id="codeTimer"></div>
+          <div class="live-counter">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M16 11l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Students Marked: <span class="counter-number" id="liveCount">0</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistics -->
+      <div class="section">
+        <h2>Attendance Statistics</h2>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card">
+            <span class="stat-value" id="totalLectures">0</span>
+            <div class="stat-label">Total Lectures</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="totalAttendance">0</span>
+            <div class="stat-label">Total Attendance</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="avgAttendance">0%</span>
+            <div class="stat-label">Average Attendance</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="uniqueStudents">0</span>
+            <div class="stat-label">Unique Students</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Attendance -->
+      <div class="section">
+        <h2>Recent Attendance</h2>
+        <div class="attendance-list" id="attendanceList">
+          <div class="no-attendance">No attendance records yet</div>
+        </div>
+      </div>
+
+      <!-- Live Session (when code is active) -->
+      <div class="section" id="liveSession" style="display: none;">
+        <h2>Live Session</h2>
+        <div id="liveSessionContent">
+          <p style="color: var(--muted);">Generate a code to start a live session</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
+    let currentCode = null;
+    let countdownInterval = null;
+    let liveUpdateInterval = null;
+
+    // Session check
     fetch('/check-session').then(res => res.json()).then(data => {
       if (!data.loggedIn || data.role !== 'teacher') {
         window.location.href = '/';
+      } else {
+        loadStats();
+        loadAttendance();
       }
     });
-  </script>
-  <h1>Teacher Dashboard</h1>
-  <button onclick="logout()">Logout</button>
-  <button onclick="generateCode()">Generate Code</button>
-  <div id="codeContainer"></div>
-  <h2>Attendance Records</h2>
-  <div id="attendanceList"></div>
 
-  <script>
     async function logout() {
       await fetch('/logout', { method: 'POST' });
       window.location.href = '/';
     }
 
-    let countdownInterval;
-
     async function generateCode() {
-      const response = await fetch('/generate-code', { method: 'POST' });
-      if (!response.ok) {
-        alert('Error generating code: ' + response.statusText);
-        return;
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="animate-spin"></circle></svg> Generating...';
+
+      try {
+        const response = await fetch('/generate-code', { method: 'POST' });
+        if (!response.ok) {
+          throw new Error('Failed to generate code');
+        }
+        const data = await response.json();
+
+        if (data.code) {
+          currentCode = data.code;
+          showCode(data.code);
+          startLiveUpdates();
+        } else {
+          alert('Error: ' + (data.error || 'Unknown error'));
+        }
+      } catch (error) {
+        alert('Error generating code: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Generate Code';
       }
-      const data = await response.json();
-      if (data.code) {
-        document.getElementById('codeContainer').innerHTML = `<p>Code: <strong>${data.code}</strong></p><p>Expires in: <span id="countdown">50</span> seconds</p>`;
-        let timeLeft = 50;
-        countdownInterval = setInterval(() => {
-          timeLeft--;
-          document.getElementById('countdown').textContent = timeLeft;
-          if (timeLeft <= 0) {
-            clearInterval(countdownInterval);
-            document.getElementById('codeContainer').innerHTML = 'Code Expired';
-          }
-        }, 1000);
-      } else {
-        alert('Error: ' + (data.error || 'Unknown error'));
+    }
+
+    function showCode(code) {
+      const display = document.getElementById('codeDisplay');
+      const number = document.getElementById('codeNumber');
+      const timer = document.getElementById('codeTimer');
+
+      number.textContent = code;
+      display.style.display = 'block';
+
+      let timeLeft = 50;
+      timer.textContent = `Expires in: ${timeLeft} seconds`;
+
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        timeLeft--;
+        timer.textContent = `Expires in: ${timeLeft} seconds`;
+
+        if (timeLeft <= 0) {
+          clearInterval(countdownInterval);
+          display.style.display = 'none';
+          currentCode = null;
+          stopLiveUpdates();
+          loadAttendance(); // Refresh attendance list
+        }
+      }, 1000);
+    }
+
+    function startLiveUpdates() {
+      if (liveUpdateInterval) clearInterval(liveUpdateInterval);
+      liveUpdateInterval = setInterval(updateLiveCount, 2000); // Update every 2 seconds
+      document.getElementById('liveSession').style.display = 'block';
+    }
+
+    function stopLiveUpdates() {
+      if (liveUpdateInterval) {
+        clearInterval(liveUpdateInterval);
+        liveUpdateInterval = null;
+      }
+      document.getElementById('liveSession').style.display = 'none';
+    }
+
+    async function updateLiveCount() {
+      if (!currentCode) return;
+
+      try {
+        const response = await fetch(`/live-count?code=${currentCode}`);
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById('liveCount').textContent = data.count;
+        }
+      } catch (error) {
+        console.error('Error updating live count:', error);
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const response = await fetch('/teacher-stats');
+        if (response.ok) {
+          const stats = await response.json();
+          document.getElementById('totalLectures').textContent = stats.totalLectures;
+          document.getElementById('totalAttendance').textContent = stats.totalAttendance;
+          document.getElementById('avgAttendance').textContent = stats.avgAttendance + '%';
+          document.getElementById('uniqueStudents').textContent = stats.uniqueStudents;
+        }
+      } catch (error) {
+        console.error('Error loading stats:', error);
       }
     }
 
     async function loadAttendance() {
-      const response = await fetch('/attendance');
-      const data = await response.json();
-      const list = document.getElementById('attendanceList');
-      list.innerHTML = data.map(a => `<p>${a.first_name} ${a.last_name} (${a.prn}) - ${a.marked_at}</p>`).join('');
+      try {
+        const response = await fetch('/attendance');
+        if (!response.ok) {
+          document.getElementById('attendanceList').innerHTML = '<div class="no-attendance">Error loading attendance</div>';
+          return;
+        }
+        const data = await response.json();
+
+        if (data.length === 0) {
+          document.getElementById('attendanceList').innerHTML = '<div class="no-attendance">No attendance records yet</div>';
+          return;
+        }
+
+        // Group by date (simulating lectures)
+        const grouped = data.reduce((acc, record) => {
+          const date = new Date(record.marked_at).toDateString();
+          if (!acc[date]) acc[date] = [];
+          acc[date].push(record);
+          return acc;
+        }, {});
+
+        const html = Object.entries(grouped)
+          .sort(([a], [b]) => new Date(b) - new Date(a))
+          .map(([date, records]) => `
+            <div class="lecture-group">
+              <div class="lecture-header">
+                <div class="lecture-title">${date}</div>
+                <div class="lecture-count">${records.length} students</div>
+              </div>
+              ${records.map(record => `
+                <div class="student-item">
+                  <div class="student-info">
+                    <div class="student-name">${record.first_name} ${record.last_name}</div>
+                    <div class="student-details">${record.prn} • ${record.email}</div>
+                  </div>
+                  <div class="attendance-time">${new Date(record.marked_at).toLocaleTimeString()}</div>
+                </div>
+              `).join('')}
+            </div>
+          `).join('');
+
+        document.getElementById('attendanceList').innerHTML = html;
+      } catch (error) {
+        document.getElementById('attendanceList').innerHTML = '<div class="no-attendance">Error loading attendance</div>';
+      }
     }
 
-    loadAttendance();
-    setInterval(loadAttendance, 5000); // Refresh every 5 seconds
+    // Auto-refresh stats and attendance
+    setInterval(() => {
+      loadStats();
+      if (!currentCode) loadAttendance(); // Don't refresh during live session
+    }, 10000); // Every 10 seconds
   </script>
 </body>
 </html>
