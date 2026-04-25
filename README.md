@@ -6,7 +6,9 @@ A modern web-based attendance management system for Wadia College of Engineering
 
 ### For Teachers
 - Generate time-limited (50 seconds) 5-digit codes for attendance
-- View real-time attendance records
+- **Live attendance counter** - See real-time count of students marking attendance
+- **Comprehensive statistics**: Total lectures, attendance count, average percentage, unique students
+- View detailed attendance records organized by lecture date
 - Secure teacher dashboard with session management
 
 ### For Students
@@ -21,6 +23,7 @@ A modern web-based attendance management system for Wadia College of Engineering
 - Session-based security
 - Responsive design with modern UI
 - Real-time attendance tracking
+- **Live attendance monitoring** for teachers during active sessions
 
 ## Tech Stack
 
