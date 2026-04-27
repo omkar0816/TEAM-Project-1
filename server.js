@@ -74,7 +74,10 @@ app.post('/signup', (req, res) => {
     [email, password, role, firstName, lastName, prn, year, department, empId], function(err) {
       if (err) {
         console.error('Signup error:', err.message);
-        return res.status(500).json({ success: false, message: 'User already exists or error' });
+        const message = err.message && err.message.includes('UNIQUE constraint failed')
+          ? 'Account already exists. Please log in instead.'
+          : 'User already exists or error';
+        return res.status(500).json({ success: false, message });
       }
       res.json({ success: true });
     });

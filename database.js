@@ -46,6 +46,25 @@ db.serialize(() => {
     FOREIGN KEY (qr_id) REFERENCES qr_codes(id),
     UNIQUE(student_id, qr_id)
   )`);
+
+  // Seed default teacher if no teacher exists
+  db.get(`SELECT COUNT(*) AS count FROM users WHERE role = 'teacher'`, (err, row) => {
+    if (!err && row && row.count === 0) {
+      const defaultEmail = process.env.DEFAULT_TEACHER_EMAIL || 'teacher@wadia.ac.in';
+      const defaultPassword = process.env.DEFAULT_TEACHER_PASSWORD || 'password123';
+      db.run(
+        `INSERT OR IGNORE INTO users (email, password, role, first_name, last_name, emp_id) VALUES (?, ?, 'teacher', ?, ?, ?)`,
+        [defaultEmail, defaultPassword, 'Default', 'Teacher', 'T001'],
+        (seedErr) => {
+          if (seedErr) {
+            console.error('Error seeding default teacher:', seedErr.message);
+          } else {
+            console.log(`Seeded default teacher account: ${defaultEmail}`);
+          }
+        }
+      );
+    }
+  });
 });
 
 module.exports = db;
