@@ -1,7 +1,9 @@
 const express = require('express');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const bodyParser = require('body-parser');
 const path = require('path');
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./database');
 
@@ -11,10 +13,22 @@ const PORT = process.env.PORT || 3000;
 // If running behind a proxy (common in cloud deployments), trust the first proxy.
 app.set('trust proxy', 1);
 
+// Ensure session storage directory exists
+const sessionDir = path.join(__dirname, 'sessions');
+if (!fs.existsSync(sessionDir)) {
+  fs.mkdirSync(sessionDir, { recursive: true });
+}
+
+const sessionStore = new FileStore({
+  path: sessionDir,
+  logFn: () => {}
+});
+
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'wadia-secret-key', // Change in production
   resave: false,
   saveUninitialized: false,
@@ -45,7 +59,8 @@ app.get('/', (req, res) => {
 
 // Login
 app.post('/login', (req, res) => {
-  const { email, password } = req.body;
+  const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
+  const password = req.body.password ? req.body.password.trim() : '';
   db.get('SELECT * FROM users WHERE email = ? AND password = ?', [email, password], (err, user) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
@@ -62,7 +77,16 @@ app.post('/login', (req, res) => {
 
 // Signup
 app.post('/signup', (req, res) => {
-  const { role, firstName, lastName, email, password, prn, year, department, empId } = req.body;
+  const role = req.body.role;
+  const firstName = req.body.firstName ? req.body.firstName.trim() : '';
+  const lastName = req.body.lastName ? req.body.lastName.trim() : '';
+  const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
+  const password = req.body.password ? req.body.password.trim() : '';
+  const prn = req.body.prn ? req.body.prn.trim() : '';
+  const year = req.body.year ? req.body.year.trim() : '';
+  const department = req.body.department ? req.body.department.trim() : '';
+  const empId = req.body.empId ? req.body.empId.trim() : '';
+
   // Simple validation
   if (!role || !email || !password) {
     return res.status(400).json({ success: false, message: 'Role, email, and password are required' });
