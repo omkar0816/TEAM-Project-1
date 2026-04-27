@@ -64,7 +64,7 @@ function importStudentsFromCSV(csvFilePath) {
 
   // Close database after a delay to allow all inserts to complete
   setTimeout(() => {
-    console.log(`\nImport complete!`);
+    console.log(`\nImport complete!`); 
     console.log(`Imported: ${imported} students`);
     console.log(`Skipped: ${skipped} students`);
     db.close();

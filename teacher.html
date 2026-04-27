@@ -124,13 +124,9 @@
 
     .main-content {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 2rem;
       flex: 1;
-    }
-
-    @media (max-width: 768px) {
-      .main-content { grid-template-columns: 1fr; }
     }
 
     .section {
@@ -219,6 +215,44 @@
       font-size: 2rem;
       font-weight: bold;
       color: var(--gold2);
+    }
+
+    .live-students-list {
+      margin-top: 1rem;
+      max-height: 200px;
+      overflow-y: auto;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 0.5rem;
+    }
+
+    .live-student-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+
+    .live-student-item:last-child {
+      border-bottom: none;
+    }
+
+    .live-student-name {
+      font-weight: 500;
+      color: var(--white);
+    }
+
+    .live-student-prn {
+      color: var(--muted);
+    }
+
+    .no-live-students {
+      text-align: center;
+      color: var(--muted);
+      padding: 1rem;
+      font-style: italic;
     }
 
     /* Stats Section */
@@ -323,6 +357,77 @@
       font-style: italic;
     }
 
+    /* Sessions List */
+    .sessions-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .session-item {
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
+      cursor: pointer;
+    }
+
+    .session-item:hover {
+      background: rgba(255,255,255,0.12);
+    }
+
+    .session-info {
+      flex: 1;
+    }
+
+    .session-title {
+      font-weight: 600;
+      color: var(--gold2);
+      margin-bottom: 0.25rem;
+    }
+
+    .session-details {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .session-count {
+      background: var(--blue);
+      color: var(--white);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-left: 1rem;
+    }
+
+    .view-session-btn {
+      background: var(--gold);
+      color: var(--navy);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .view-session-btn:hover {
+      background: var(--gold2);
+      transform: translateY(-1px);
+    }
+
+    .no-sessions {
+      text-align: center;
+      color: var(--muted);
+      padding: 2rem;
+      font-style: italic;
+    }
+
     /* Animations */
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
@@ -373,6 +478,11 @@
       <!-- Code Generation -->
       <div class="section code-section">
         <h2>Generate Attendance Code</h2>
+        <div class="subject-input" style="margin-bottom: 1rem;">
+          <input type="text" id="subjectInput" placeholder="Enter subject/lecture name (optional)" 
+                 style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.08); color: var(--white); font-size: 16px;" 
+                 maxlength="100">
+        </div>
         <button class="generate-btn" id="generateBtn" onclick="generateCode()">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -389,6 +499,9 @@
               <path d="M16 11l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span>Students Marked: <span class="counter-number" id="liveCount">0</span></span>
+          </div>
+          <div class="live-students-list" id="liveStudentsList">
+            <div class="no-live-students">No students have marked attendance yet</div>
           </div>
         </div>
       </div>
@@ -424,6 +537,22 @@
         </div>
       </div>
 
+      <!-- All Sessions -->
+      <div class="section">
+        <h2>All Sessions</h2>
+        <div class="sessions-list" id="sessionsList">
+          <div class="no-sessions">No sessions created yet</div>
+        </div>
+      </div>
+
+      <!-- Session Details -->
+      <div class="section" id="sessionDetailSection">
+        <h2>Session Details</h2>
+        <div class="attendance-list" id="sessionDetails">
+          <div class="no-attendance">Select a session to view student attendance and PRN details.</div>
+        </div>
+      </div>
+
       <!-- Live Session (when code is active) -->
       <div class="section" id="liveSession" style="display: none;">
         <h2>Live Session</h2>
@@ -446,6 +575,7 @@
       } else {
         loadStats();
         loadAttendance();
+        loadSessions();
       }
     });
 
@@ -455,12 +585,17 @@
     }
 
     async function generateCode() {
+      const subject = document.getElementById('subjectInput').value.trim();
       const btn = document.getElementById('generateBtn');
       btn.disabled = true;
       btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="animate-spin"></circle></svg> Generating...';
 
       try {
-        const response = await fetch('/generate-code', { method: 'POST' });
+        const response = await fetch('/generate-code', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject })
+        });
         if (!response.ok) {
           throw new Error('Failed to generate code');
         }
@@ -470,6 +605,7 @@
           currentCode = data.code;
           showCode(data.code);
           startLiveUpdates();
+          loadSessions();
         } else {
           alert('Error: ' + (data.error || 'Unknown error'));
         }
@@ -503,6 +639,7 @@
           currentCode = null;
           stopLiveUpdates();
           loadAttendance(); // Refresh attendance list
+          loadSessions(); // Refresh sessions list
         }
       }, 1000);
     }
@@ -529,6 +666,23 @@
         if (response.ok) {
           const data = await response.json();
           document.getElementById('liveCount').textContent = data.count;
+          
+          const listElement = document.getElementById('liveStudentsList');
+          if (data.students.length === 0) {
+            listElement.innerHTML = '<div class="no-live-students">No students have marked attendance yet</div>';
+          } else {
+            listElement.innerHTML = data.students.map(student => `
+              <div class="live-student-item">
+                <div>
+                  <div class="live-student-name">${student.first_name} ${student.last_name}</div>
+                  <div class="live-student-prn">PRN: ${student.prn}</div>
+                </div>
+                <div style="color: var(--gold); font-size: 0.8rem;">
+                  ${new Date(student.marked_at).toLocaleTimeString()}
+                </div>
+              </div>
+            `).join('');
+          }
         }
       } catch (error) {
         console.error('Error updating live count:', error);
@@ -595,6 +749,76 @@
         document.getElementById('attendanceList').innerHTML = html;
       } catch (error) {
         document.getElementById('attendanceList').innerHTML = '<div class="no-attendance">Error loading attendance</div>';
+      }
+    }
+
+    async function loadSessions() {
+      try {
+        const response = await fetch('/sessions');
+        if (!response.ok) {
+          document.getElementById('sessionsList').innerHTML = '<div class="no-sessions">Error loading sessions</div>';
+          return;
+        }
+        const sessions = await response.json();
+
+        if (sessions.length === 0) {
+          document.getElementById('sessionsList').innerHTML = '<div class="no-sessions">No sessions created yet</div>';
+          return;
+        }
+
+        const html = sessions.map(session => `
+          <div class="session-item" onclick="viewSession('${session.id}')">
+            <div class="session-info">
+              <div class="session-title">${session.subject || 'Lecture'}</div>
+              <div class="session-details">${new Date(session.created_at).toLocaleString()}</div>
+            </div>
+            <div class="session-count">${session.attendance_count} students</div>
+            <button class="view-session-btn" onclick="event.stopPropagation(); viewSession('${session.id}')">View</button>
+          </div>
+        `).join('');
+
+        document.getElementById('sessionsList').innerHTML = html;
+      } catch (error) {
+        document.getElementById('sessionsList').innerHTML = '<div class="no-sessions">Error loading sessions</div>';
+      }
+    }
+
+    async function viewSession(code) {
+      try {
+        const response = await fetch(`/session-attendance?code=${code}`);
+        if (!response.ok) {
+          alert('Error loading session details');
+          return;
+        }
+        const data = await response.json();
+        const detailsElement = document.getElementById('sessionDetails');
+
+        if (!data.students || data.students.length === 0) {
+          detailsElement.innerHTML = `<div class="no-attendance">No students have marked attendance for this session yet.</div>`;
+          return;
+        }
+
+        const html = `
+          <div class="lecture-group">
+            <div class="lecture-header">
+              <div class="lecture-title">${data.session.subject || 'Lecture'} — ${data.session.id}</div>
+              <div class="lecture-count">${data.students.length} present</div>
+            </div>
+            ${data.students.map(student => `
+              <div class="student-item">
+                <div class="student-info">
+                  <div class="student-name">${student.first_name} ${student.last_name}</div>
+                  <div class="student-details">PRN: ${student.prn} • ${student.email}</div>
+                </div>
+                <div class="attendance-time">${new Date(student.marked_at).toLocaleTimeString()}</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        detailsElement.innerHTML = html;
+      } catch (error) {
+        alert('Error loading session details');
       }
     }
 

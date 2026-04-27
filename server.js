@@ -8,14 +8,20 @@ const db = require('./database');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// If running behind a proxy (common in cloud deployments), trust the first proxy.
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
-  secret: 'wadia-secret-key', // Change in production
+  secret: process.env.SESSION_SECRET || 'wadia-secret-key', // Change in production
   resave: false,
-  saveUninitialized: true,
-  cookie: { secure: false } // Set to true if using HTTPS
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+  }
 }));
 
 // Serve static files (frontend)
@@ -90,14 +96,27 @@ app.post('/generate-code', (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
-  const code = Math.floor(10000 + Math.random() * 90000).toString();
+
+  const { subject } = req.body;
   const expiresAt = new Date(Date.now() + 50 * 1000); // 50 seconds
-  db.run('INSERT INTO qr_codes (id, teacher_id, expires_at) VALUES (?, ?, ?)', [code, req.session.userId, expiresAt.toISOString()], (err) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
+  const tryInsertCode = (attempt = 0) => {
+    if (attempt >= 5) {
+      return res.status(500).json({ error: 'Unable to generate a unique code. Please try again.' });
     }
-    res.json({ code });
-  });
+
+    const code = Math.floor(10000 + Math.random() * 90000).toString();
+    db.run('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()], (err) => {
+      if (err) {
+        if (err.message && err.message.includes('UNIQUE constraint failed')) {
+          return tryInsertCode(attempt + 1);
+        }
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({ code });
+    });
+  };
+
+  tryInsertCode();
 });
 
 // Mark attendance (for students)
@@ -158,18 +177,18 @@ app.post('/mark-attendance-post', (req, res) => {
   });
 });
 
-// Get attendance for teacher
-app.get('/attendance', (req, res) => {
+// Get all sessions/lectures for teacher
+app.get('/sessions', (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
+
   db.all(`
-    SELECT a.marked_at, u.first_name, u.last_name, u.prn, u.email
-    FROM attendance a
-    JOIN users u ON a.student_id = u.id
-    JOIN qr_codes q ON a.qr_id = q.id
-    WHERE q.teacher_id = ?
-    ORDER BY a.marked_at DESC
+    SELECT id, subject, created_at, expires_at,
+           (SELECT COUNT(*) FROM attendance WHERE qr_id = qr_codes.id) as attendance_count
+    FROM qr_codes
+    WHERE teacher_id = ?
+    ORDER BY created_at DESC
   `, [req.session.userId], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
@@ -178,7 +197,43 @@ app.get('/attendance', (req, res) => {
   });
 });
 
-// Get live count for active code
+// Get attendance for a specific session
+app.get('/session-attendance', (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.query;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
+  }
+
+  // First verify the code belongs to this teacher
+  db.get('SELECT * FROM qr_codes WHERE id = ? AND teacher_id = ?', [code, req.session.userId], (err, codeRow) => {
+    if (err || !codeRow) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Get all attendance for this session
+    db.all(`
+      SELECT u.first_name, u.last_name, u.prn, u.email, a.marked_at
+      FROM attendance a
+      JOIN users u ON a.student_id = u.id
+      WHERE a.qr_id = ?
+      ORDER BY a.marked_at ASC
+    `, [code], (err, students) => {
+      if (err) {
+        return res.status(500).json({ error: 'Database error' });
+      }
+      res.json({
+        session: codeRow,
+        students: students
+      });
+    });
+  });
+});
+
+// Get live count and student list for active code
 app.get('/live-count', (req, res) => {
   const { code } = req.query;
   if (!code) {
@@ -187,14 +242,20 @@ app.get('/live-count', (req, res) => {
 
   db.get('SELECT id FROM qr_codes WHERE id = ? AND expires_at > datetime("now")', [code], (err, codeRow) => {
     if (err || !codeRow) {
-      return res.json({ count: 0 });
+      return res.json({ count: 0, students: [] });
     }
 
-    db.get('SELECT COUNT(*) as count FROM attendance WHERE qr_id = ?', [code], (err, result) => {
+    db.all(`
+      SELECT u.first_name, u.last_name, u.prn, a.marked_at
+      FROM attendance a
+      JOIN users u ON a.student_id = u.id
+      WHERE a.qr_id = ?
+      ORDER BY a.marked_at ASC
+    `, [code], (err, students) => {
       if (err) {
         return res.status(500).json({ error: 'Database error' });
       }
-      res.json({ count: result.count });
+      res.json({ count: students.length, students });
     });
   });
 });
@@ -250,6 +311,29 @@ app.get('/teacher-stats', (req, res) => {
         });
       });
     });
+  });
+});
+
+// Get attendance for teacher dashboard
+app.get('/attendance', (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const teacherId = req.session.userId;
+  db.all(`
+    SELECT a.marked_at, q.subject, q.id as session_id,
+           u.first_name, u.last_name, u.prn, u.email
+    FROM attendance a
+    JOIN qr_codes q ON a.qr_id = q.id
+    JOIN users u ON a.student_id = u.id
+    WHERE q.teacher_id = ?
+    ORDER BY a.marked_at DESC
+  `, [teacherId], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    res.json(rows);
   });
 });
 
