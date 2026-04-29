@@ -1,70 +1,67 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const dbPath = path.join(__dirname, 'attendance.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database:', err.message);
-  } else {
-    console.log('Connected to SQLite database at', dbPath);
-  }
+const { createClient } = require('@libsql/client');
+const db = createClient({
+  url: process.env.TURSO_DB_URL || 'file:attendance.db',  // fallback to local SQLite file if env not set
+  authToken: process.env.TURSO_AUTH_TOKEN
 });
 
-// Create tables
-db.serialize(() => {
-  // Users table for students and teachers
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    role TEXT NOT NULL, -- 'student' or 'teacher'
-    first_name TEXT,
-    last_name TEXT,
-    prn TEXT, -- for students
-    year TEXT, -- for students
-    department TEXT,
-    emp_id TEXT, -- for teachers
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+// Initialize database tables
+async function initDB() {
+  try {
+    // Users table for students and teachers
+    await db.execute(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL, -- 'student' or 'teacher'
+      first_name TEXT,
+      last_name TEXT,
+      prn TEXT, -- for students
+      year TEXT, -- for students
+      department TEXT,
+      emp_id TEXT, -- for teachers
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
-  // QR codes table
-  db.run(`CREATE TABLE IF NOT EXISTS qr_codes (
-    id TEXT PRIMARY KEY,
-    teacher_id INTEGER NOT NULL,
-    subject TEXT, -- optional
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME NOT NULL,
-    FOREIGN KEY (teacher_id) REFERENCES users(id)
-  )`);
+    // QR codes table
+    await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (
+      id TEXT PRIMARY KEY,
+      teacher_id INTEGER NOT NULL,
+      subject TEXT, -- optional
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME NOT NULL,
+      FOREIGN KEY (teacher_id) REFERENCES users(id)
+    )`);
 
-  // Attendance table
-  db.run(`CREATE TABLE IF NOT EXISTS attendance (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id INTEGER NOT NULL,
-    qr_id TEXT NOT NULL,
-    marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_id) REFERENCES users(id),
-    FOREIGN KEY (qr_id) REFERENCES qr_codes(id),
-    UNIQUE(student_id, qr_id)
-  )`);
+    // Attendance table
+    await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL,
+      qr_id TEXT NOT NULL,
+      marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (student_id) REFERENCES users(id),
+      FOREIGN KEY (qr_id) REFERENCES qr_codes(id),
+      UNIQUE(student_id, qr_id)
+    )`);
 
-  // Seed default teacher if no teacher exists
-  db.get(`SELECT COUNT(*) AS count FROM users WHERE role = 'teacher'`, (err, row) => {
-    if (!err && row && row.count === 0) {
+    // Seed default teacher if no teacher exists
+    const result = await db.execute(`SELECT COUNT(*) AS count FROM users WHERE role = 'teacher'`);
+    const count = result.rows[0]?.count || 0;
+    if (count === 0) {
       const defaultEmail = process.env.DEFAULT_TEACHER_EMAIL || 'teacher@wadia.ac.in';
       const defaultPassword = process.env.DEFAULT_TEACHER_PASSWORD || 'password123';
-      db.run(
+      await db.execute(
         `INSERT OR IGNORE INTO users (email, password, role, first_name, last_name, emp_id) VALUES (?, ?, 'teacher', ?, ?, ?)`,
-        [defaultEmail, defaultPassword, 'Default', 'Teacher', 'T001'],
-        (seedErr) => {
-          if (seedErr) {
-            console.error('Error seeding default teacher:', seedErr.message);
-          } else {
-            console.log(`Seeded default teacher account: ${defaultEmail}`);
-          }
-        }
+        [defaultEmail, defaultPassword, 'Default', 'Teacher', 'T001']
       );
+      console.log(`Seeded default teacher account: ${defaultEmail}`);
     }
-  });
-});
 
-module.exports = db;
+    console.log('Database initialized successfully.');
+  } catch (err) {
+    console.error('Error initializing database:', err.message);
+  }
+}
+
+initDB();
+
+module.exports = { db, initDB };
