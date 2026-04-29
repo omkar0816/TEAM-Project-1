@@ -312,6 +312,170 @@
     .section:nth-child(1) { animation-delay: 0.1s; }
     .section:nth-child(2) { animation-delay: 0.2s; }
     .section:nth-child(3) { animation-delay: 0.3s; }
+
+    /* ===== MOBILE RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      /* General layout */
+      body {
+        padding: 0;
+        font-size: 14px;
+      }
+
+      .dashboard {
+        padding: 1rem;
+        gap: 1rem;
+      }
+
+      /* Make any side-by-side cards stack vertically */
+      .stats-container,
+      .card-row,
+      .dashboard-grid,
+      .flex-row,
+      .main-content {
+        flex-direction: column !important;
+        gap: 12px !important;
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Full width cards on mobile */
+      .card,
+      .stat-card,
+      .section,
+      .box {
+        width: 100% !important;
+        margin: 8px 0 !important;
+        padding: 16px !important;
+        box-sizing: border-box;
+      }
+
+      /* Tables — make them scroll horizontally */
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .history-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Buttons — full width and finger-friendly */
+      button,
+      .btn,
+      a.btn {
+        width: 100%;
+        padding: 14px !important;
+        font-size: 16px !important;
+        margin: 6px 0 !important;
+        box-sizing: border-box;
+      }
+
+      /* Inputs — full width */
+      input,
+      textarea,
+      select {
+        width: 100% !important;
+        padding: 12px !important;
+        font-size: 16px !important; /* prevents iOS auto-zoom on focus */
+        box-sizing: border-box;
+        margin: 6px 0 !important;
+      }
+
+      /* Code input layout */
+      .code-input {
+        flex-direction: column !important;
+        gap: 12px;
+      }
+
+      .code-input input {
+        width: 100% !important;
+      }
+
+      .code-input .btn {
+        width: 100% !important;
+      }
+
+      /* Navbar / Header */
+      header,
+      nav,
+      .navbar,
+      .header {
+        flex-direction: column !important;
+        text-align: center;
+        padding: 12px !important;
+        gap: 8px;
+      }
+
+      /* Logo */
+      .logo {
+        width: 100%;
+        justify-content: center;
+        margin-bottom: 8px;
+      }
+
+      /* Headings */
+      h1 { font-size: 22px !important; }
+      h2 { font-size: 18px !important; }
+      h3 { font-size: 15px !important; }
+
+      /* Main container */
+      .container,
+      main,
+      .main-content {
+        padding: 12px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+      }
+
+      /* Attendance percentage numbers */
+      .percentage,
+      .big-number {
+        font-size: 36px !important;
+      }
+
+      .stat-value {
+        font-size: 1.5rem !important;
+      }
+
+      /* Assignment cards */
+      #assignment-list li,
+      .assignment-item {
+        padding: 12px !important;
+        font-size: 14px !important;
+      }
+
+      /* Attendance items */
+      .attendance-item {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+      }
+
+      /* Stats grid responsive */
+      .stats-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px;
+      }
+
+      .stat-card {
+        padding: 12px !important;
+      }
+    }
+
+    /* Extra small phones (iPhone SE etc.) */
+    @media (max-width: 380px) {
+      h1 { font-size: 18px !important; }
+      h2 { font-size: 16px !important; }
+      .percentage { font-size: 28px !important; }
+      .stat-value { font-size: 1.3rem !important; }
+      .dashboard { padding: 8px; }
+      .section { padding: 12px !important; }
+      button, .btn { padding: 10px !important; }
+    }
   </style>
 </head>
 <body>
@@ -485,18 +649,20 @@
         `).join('');
 
         document.getElementById('sessionHistory').innerHTML = `
-          <table class="history-table">
-            <thead>
-              <tr>
-                <th>Subject</th>
-                <th>Date</th>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Teacher</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
+          <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%;">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Teacher</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
         `;
       } catch (error) {
         document.getElementById('sessionHistory').innerHTML = '<p style="color: var(--err);">Error loading session history.</p>';

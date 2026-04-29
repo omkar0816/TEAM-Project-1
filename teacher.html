@@ -525,6 +525,226 @@
     .section:nth-child(2) { animation-delay: 0.2s; }
     .section:nth-child(3) { animation-delay: 0.3s; }
     .section:nth-child(4) { animation-delay: 0.4s; }
+
+    /* ===== MOBILE RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      /* General layout */
+      body {
+        padding: 0;
+        font-size: 14px;
+      }
+
+      .dashboard {
+        padding: 1rem;
+        gap: 1rem;
+      }
+
+      /* Make any side-by-side cards stack vertically */
+      .stats-container,
+      .card-row,
+      .dashboard-grid,
+      .flex-row,
+      .main-content {
+        flex-direction: column !important;
+        gap: 12px !important;
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Full width cards on mobile */
+      .card,
+      .stat-card,
+      .section,
+      .box {
+        width: 100% !important;
+        margin: 8px 0 !important;
+        padding: 16px !important;
+        box-sizing: border-box;
+      }
+
+      /* Tables — make them scroll horizontally */
+      table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Buttons — full width and finger-friendly */
+      button,
+      .btn,
+      a.btn,
+      .generate-btn,
+      .report-btn,
+      .view-session-btn {
+        width: 100%;
+        padding: 14px !important;
+        font-size: 16px !important;
+        margin: 6px 0 !important;
+        box-sizing: border-box;
+      }
+
+      .view-session-btn {
+        width: auto;
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+        margin-left: 4px !important;
+      }
+
+      /* Inputs — full width */
+      input,
+      textarea,
+      select {
+        width: 100% !important;
+        padding: 12px !important;
+        font-size: 16px !important; /* prevents iOS auto-zoom on focus */
+        box-sizing: border-box;
+        margin: 6px 0 !important;
+      }
+
+      .assignment-input,
+      .assignment-textarea {
+        width: 100% !important;
+      }
+
+      /* Code display (the digit code teachers generate) */
+      .code-display,
+      #generated-code,
+      .code-number {
+        font-size: 40px !important;
+        letter-spacing: 6px !important;
+        text-align: center;
+      }
+
+      .code-display {
+        padding: 1.5rem !important;
+      }
+
+      /* Navbar / Header */
+      header,
+      nav,
+      .navbar,
+      .header {
+        flex-direction: column !important;
+        text-align: center;
+        padding: 12px !important;
+        gap: 8px;
+      }
+
+      /* Logo */
+      .logo {
+        width: 100%;
+        justify-content: center;
+        margin-bottom: 8px;
+      }
+
+      /* Headings */
+      h1 { font-size: 22px !important; }
+      h2 { font-size: 18px !important; }
+      h3 { font-size: 15px !important; }
+
+      /* Main container */
+      .container,
+      main,
+      .main-content {
+        padding: 12px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+      }
+
+      /* Stats grid responsive */
+      .stats-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px;
+      }
+
+      .stat-card {
+        padding: 12px !important;
+      }
+
+      .stat-value {
+        font-size: 1.5rem !important;
+      }
+
+      /* Lists responsive */
+      .attendance-list,
+      .sessions-list,
+      .live-students-list {
+        max-height: none !important;
+      }
+
+      /* Assignment form responsive */
+      .assignment-form {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+      }
+
+      /* Student/Lecture items */
+      .student-item,
+      .lecture-header,
+      .session-item {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+      }
+
+      .lecture-header {
+        justify-content: space-between !important;
+      }
+
+      .lecture-count,
+      .session-count {
+        margin-top: 8px !important;
+        margin-left: 0 !important;
+      }
+
+      .session-item {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+
+      /* Button groups */
+      .assignment-actions {
+        flex-direction: column !important;
+        gap: 8px !important;
+      }
+
+      .view-session-btn {
+        width: 48% !important;
+        display: inline-block !important;
+        margin: 4px 2% !important;
+      }
+
+      /* Live counter */
+      .live-counter {
+        flex-direction: column !important;
+        gap: 8px !important;
+        font-size: 1rem !important;
+      }
+
+      .counter-number {
+        font-size: 1.5rem !important;
+      }
+
+      /* Subject input */
+      .subject-input {
+        margin-bottom: 1rem !important;
+      }
+    }
+
+    /* Extra small phones (iPhone SE etc.) */
+    @media (max-width: 380px) {
+      h1 { font-size: 18px !important; }
+      h2 { font-size: 16px !important; }
+      .code-number { font-size: 32px !important; }
+      .stat-value { font-size: 1.3rem !important; }
+      .dashboard { padding: 8px; }
+      .section { padding: 12px !important; }
+      button, .btn, .generate-btn, .report-btn { padding: 10px !important; }
+      .view-session-btn { width: 45% !important; }
+    }
   </style>
 </head>
 <body>
