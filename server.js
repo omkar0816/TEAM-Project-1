@@ -6,6 +6,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('./database');
 const TursoSessionStore = require('./sessionStore');
+const ExcelJS = require('exceljs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -126,11 +127,13 @@ app.post('/generate-code', async (req, res) => {
     const code = Math.floor(10000 + Math.random() * 90000).toString();
     try {
       await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()]);
+      await db.execute('INSERT OR IGNORE INTO sessions (code, created_by, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()]);
       res.json({ code });
     } catch (err) {
       if (err.message && err.message.includes('UNIQUE constraint failed')) {
         return tryInsertCode(attempt + 1);
       }
+      console.error('Generate code DB error:', err);
       res.status(500).json({ error: 'Database error' });
     }
   };
@@ -206,10 +209,10 @@ app.get('/sessions', async (req, res) => {
 
   try {
     const result = await db.execute(`
-      SELECT id, subject, created_at, expires_at,
-             (SELECT COUNT(*) FROM attendance WHERE qr_id = qr_codes.id) as attendance_count
-      FROM qr_codes
-      WHERE teacher_id = ?
+      SELECT code as id, subject, created_at, expires_at,
+             (SELECT COUNT(*) FROM attendance WHERE qr_id = sessions.code) as attendance_count
+      FROM sessions
+      WHERE created_by = ?
       ORDER BY created_at DESC
     `, [req.session.userId]);
     res.json(result.rows);
@@ -232,7 +235,7 @@ app.get('/session-attendance', async (req, res) => {
 
   try {
     // First verify the code belongs to this teacher
-    const codeResult = await db.execute('SELECT * FROM qr_codes WHERE id = ? AND teacher_id = ?', [code, req.session.userId]);
+    const codeResult = await db.execute('SELECT code as id, subject, created_at, expires_at FROM sessions WHERE code = ? AND created_by = ?', [code, req.session.userId]);
     const codeRow = codeResult.rows[0];
     if (!codeRow) {
       return res.status(404).json({ error: 'Session not found' });
@@ -377,6 +380,223 @@ app.get('/my-attendance', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('My attendance error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Student session history and attendance details
+app.get('/my-sessions', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'student') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    const result = await db.execute(`
+      SELECT s.code, s.subject, s.created_at, s.expires_at,
+             CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as present,
+             u.first_name as teacher_fname, u.last_name as teacher_lname
+      FROM sessions s
+      LEFT JOIN attendance a ON s.code = a.qr_id AND a.student_id = ?
+      LEFT JOIN users u ON s.created_by = u.id
+      ORDER BY s.created_at DESC
+    `, [req.session.userId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('My sessions error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Student stats for monthly and overall attendance
+app.get('/my-stats', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'student') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    const totalResult = await db.execute({
+      sql: `SELECT COUNT(*) AS total FROM sessions
+            WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')`,
+      args: []
+    });
+
+    const attendedResult = await db.execute({
+      sql: `SELECT COUNT(*) AS attended FROM attendance a
+            JOIN sessions s ON a.qr_id = s.code
+            WHERE a.student_id = ?
+              AND strftime('%Y-%m', s.created_at) = strftime('%Y-%m', 'now', 'localtime')`,
+      args: [req.session.userId]
+    });
+
+    const allTimeTotal = await db.execute({
+      sql: `SELECT COUNT(*) AS total FROM sessions`,
+      args: []
+    });
+
+    const allTimeAttended = await db.execute({
+      sql: `SELECT COUNT(*) AS attended FROM attendance WHERE student_id = ?`,
+      args: [req.session.userId]
+    });
+
+    const monthlyTotal = totalResult.rows[0]?.total || 0;
+    const monthlyAttended = attendedResult.rows[0]?.attended || 0;
+    const overallTotal = allTimeTotal.rows[0]?.total || 0;
+    const overallAttended = allTimeAttended.rows[0]?.attended || 0;
+
+    const monthly = monthlyTotal > 0 ? ((monthlyAttended / monthlyTotal) * 100).toFixed(1) : '0.0';
+    const live = overallTotal > 0 ? ((overallAttended / overallTotal) * 100).toFixed(1) : '0.0';
+
+    res.json({
+      monthly,
+      live,
+      monthlyAttended,
+      monthlyTotal,
+      overallAttended,
+      overallTotal
+    });
+  } catch (err) {
+    console.error('My stats error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Assignments
+app.post('/assignments', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  const { title, description, due_date } = req.body;
+  if (!title) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+  try {
+    await db.execute({
+      sql: `INSERT INTO assignments (title, description, due_date, created_by) VALUES (?, ?, ?, ?)`,
+      args: [title, description || '', due_date || null, req.session.userId]
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Add assignment error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/assignments', async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    const result = await db.execute({
+      sql: `SELECT id, title, description, due_date, created_by FROM assignments ORDER BY due_date ASC`,
+      args: []
+    });
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Get assignments error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/assignments/:id', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    await db.execute({
+      sql: `DELETE FROM assignments WHERE id = ?`,
+      args: [req.params.id]
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete assignment error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Excel downloads for teacher
+app.get('/download/monthly-report', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const students = await db.execute({
+      sql: `SELECT id, first_name, last_name, email FROM users WHERE role = 'student' ORDER BY first_name, last_name`,
+      args: []
+    });
+    const sessionsResult = await db.execute({
+      sql: `SELECT code, subject, created_at FROM sessions WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime') ORDER BY created_at`,
+      args: []
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Monthly Report');
+    const headers = ['Name', 'Email', ...sessionsResult.rows.map(s => new Date(s.created_at).toLocaleDateString()), 'Attendance %'];
+    sheet.addRow(headers);
+    sheet.getRow(1).font = { bold: true };
+
+    for (const student of students.rows) {
+      const attended = await db.execute({
+        sql: `SELECT qr_id FROM attendance WHERE student_id = ?`,
+        args: [student.id]
+      });
+      const attendedCodes = new Set(attended.rows.map(row => row.qr_id));
+      const row = [
+        `${student.first_name || ''} ${student.last_name || ''}`.trim(),
+        student.email,
+        ...sessionsResult.rows.map(s => attendedCodes.has(s.code) ? '✅' : '❌'),
+        sessionsResult.rows.length > 0 ? (([...attendedCodes].filter(code => sessionsResult.rows.some(s => s.code === code)).length / sessionsResult.rows.length) * 100).toFixed(1) + '%' : '0%'
+      ];
+      sheet.addRow(row);
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=monthly-report.xlsx');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Monthly report error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/download/lecture/:code', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const code = req.params.code;
+    const sessionResult = await db.execute({
+      sql: `SELECT code, subject, created_at FROM sessions WHERE code = ?`,
+      args: [code]
+    });
+    const session = sessionResult.rows[0];
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const attendedResult = await db.execute({
+      sql: `SELECT u.first_name, u.last_name, u.email FROM attendance a JOIN users u ON a.student_id = u.id WHERE a.qr_id = ?`,
+      args: [code]
+    });
+    const allStudents = await db.execute({
+      sql: `SELECT first_name, last_name, email FROM users WHERE role = 'student' ORDER BY first_name, last_name`,
+      args: []
+    });
+
+    const attendedEmails = new Set(attendedResult.rows.map(r => r.email));
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Lecture Attendance');
+    sheet.addRow(['Name', 'Email', 'Status']);
+    sheet.getRow(1).font = { bold: true };
+
+    for (const s of allStudents.rows) {
+      sheet.addRow([`${s.first_name || ''} ${s.last_name || ''}`.trim(), s.email, attendedEmails.has(s.email) ? 'Present' : 'Absent']);
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=lecture-${code}.xlsx`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('Lecture download error:', err);
     res.status(500).json({ error: 'Database error' });
   }
 });

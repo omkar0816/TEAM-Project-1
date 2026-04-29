@@ -32,6 +32,17 @@ async function initDB() {
       FOREIGN KEY (teacher_id) REFERENCES users(id)
     )`);
 
+    // Sessions table: tracks each generated attendance session
+    await db.execute(`CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      created_by INTEGER,
+      subject TEXT,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      expires_at TEXT,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )`);
+
     // Attendance table
     await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +52,17 @@ async function initDB() {
       FOREIGN KEY (student_id) REFERENCES users(id),
       FOREIGN KEY (qr_id) REFERENCES qr_codes(id),
       UNIQUE(student_id, qr_id)
+    )`);
+
+    // Assignments table
+    await db.execute(`CREATE TABLE IF NOT EXISTS assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      due_date TEXT,
+      created_by INTEGER,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (created_by) REFERENCES users(id)
     )`);
 
     // Seed default teacher if no teacher exists

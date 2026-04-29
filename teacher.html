@@ -414,11 +414,85 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
+      margin-left: 0.5rem;
     }
 
     .view-session-btn:hover {
       background: var(--gold2);
       transform: translateY(-1px);
+    }
+
+    .report-btn {
+      background: var(--blue);
+      color: var(--white);
+      border: none;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-right: 1rem;
+    }
+
+    .report-btn:hover {
+      background: var(--blue2);
+      transform: translateY(-1px);
+    }
+
+    .assignment-form {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .assignment-input,
+    .assignment-textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.08);
+      color: var(--white);
+      outline: none;
+      font-size: 0.95rem;
+    }
+
+    .assignment-textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .assignment-item {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .assignment-item strong {
+      color: var(--gold2);
+      display: block;
+      margin-bottom: 0.4rem;
+    }
+
+    .assignment-meta {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+
+    .assignment-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .assignment-delete-btn {
+      background: rgba(224,85,85,0.18);
+      color: var(--err);
+      border: 1px solid rgba(224,85,85,0.25);
     }
 
     .no-sessions {
@@ -529,6 +603,26 @@
         </div>
       </div>
 
+      <!-- Reports -->
+      <div class="section">
+        <h2>Reports</h2>
+        <button class="report-btn" onclick="downloadMonthlyReport()">📥 Download Monthly Attendance Report</button>
+      </div>
+
+      <!-- Assignments -->
+      <div class="section">
+        <h2>Assignments</h2>
+        <div class="assignment-form">
+          <input id="assignmentTitle" class="assignment-input" placeholder="Assignment title" />
+          <textarea id="assignmentDescription" class="assignment-textarea" placeholder="Description"></textarea>
+          <input id="assignmentDue" class="assignment-input" type="date" />
+          <button class="report-btn" onclick="addAssignment()">Add Assignment</button>
+        </div>
+        <div id="teacherAssignments">
+          <div class="no-sessions">Loading assignments...</div>
+        </div>
+      </div>
+
       <!-- Recent Attendance -->
       <div class="section">
         <h2>Recent Attendance</h2>
@@ -576,6 +670,7 @@
         loadStats();
         loadAttendance();
         loadSessions();
+        loadAssignments();
       }
     });
 
@@ -772,14 +867,90 @@
               <div class="session-title">${session.subject || 'Lecture'}</div>
               <div class="session-details">${new Date(session.created_at).toLocaleString()}</div>
             </div>
-            <div class="session-count">${session.attendance_count} students</div>
-            <button class="view-session-btn" onclick="event.stopPropagation(); viewSession('${session.id}')">View</button>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <div class="session-count">${session.attendance_count} students</div>
+              <button class="view-session-btn" onclick="event.stopPropagation(); viewSession('${session.id}')">View</button>
+              <button class="view-session-btn" onclick="event.stopPropagation(); downloadLecture('${session.id}')">Export</button>
+            </div>
           </div>
         `).join('');
 
         document.getElementById('sessionsList').innerHTML = html;
       } catch (error) {
         document.getElementById('sessionsList').innerHTML = '<div class="no-sessions">Error loading sessions</div>';
+      }
+    }
+
+    function downloadMonthlyReport() {
+      window.location.href = '/download/monthly-report';
+    }
+
+    function downloadLecture(code) {
+      window.location.href = `/download/lecture/${code}`;
+    }
+
+    async function loadAssignments() {
+      try {
+        const response = await fetch('/assignments');
+        if (!response.ok) {
+          document.getElementById('teacherAssignments').innerHTML = '<div class="no-sessions">Unable to load assignments.</div>';
+          return;
+        }
+        const data = await response.json();
+        if (data.length === 0) {
+          document.getElementById('teacherAssignments').innerHTML = '<div class="no-sessions">No assignments yet.</div>';
+          return;
+        }
+        document.getElementById('teacherAssignments').innerHTML = data.map(item => `
+          <div class="assignment-item">
+            <strong>${item.title}</strong>
+            <div>${item.description || 'No description provided.'}</div>
+            <div class="assignment-meta">Due: ${item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No deadline'}</div>
+            <div class="assignment-actions">
+              <button class="view-session-btn assignment-delete-btn" onclick="deleteAssignment(${item.id})">Delete</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (error) {
+        document.getElementById('teacherAssignments').innerHTML = '<div class="no-sessions">Error loading assignments.</div>';
+        console.error('Load assignments error:', error);
+      }
+    }
+
+    async function addAssignment() {
+      const title = document.getElementById('assignmentTitle').value.trim();
+      const description = document.getElementById('assignmentDescription').value.trim();
+      const dueDate = document.getElementById('assignmentDue').value;
+      if (!title) {
+        alert('Assignment title is required');
+        return;
+      }
+      try {
+        const response = await fetch('/assignments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, due_date: dueDate })
+        });
+        if (!response.ok) {
+          throw new Error('Unable to add assignment');
+        }
+        document.getElementById('assignmentTitle').value = '';
+        document.getElementById('assignmentDescription').value = '';
+        document.getElementById('assignmentDue').value = '';
+        loadAssignments();
+      } catch (error) {
+        alert('Error adding assignment.');
+      }
+    }
+
+    async function deleteAssignment(id) {
+      if (!confirm('Delete this assignment?')) return;
+      try {
+        const response = await fetch(`/assignments/${id}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Delete failed');
+        loadAssignments();
+      } catch (error) {
+        alert('Error deleting assignment.');
       }
     }
 

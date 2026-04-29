@@ -21,6 +21,7 @@
       --muted:  #8A9BB5;
       --border: rgba(255,255,255,0.10);
       --err:    #E05555;
+      --success: #4CAF50;
     }
 
     html, body {
@@ -211,6 +212,74 @@
       align-items: center;
     }
 
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .stat-card {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--gold2);
+      margin-bottom: 0.35rem;
+    }
+
+    .stat-label {
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .history-table th,
+    .history-table td {
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      text-align: left;
+      font-size: 0.95rem;
+      color: var(--white);
+    }
+
+    .history-table th {
+      background: rgba(255,255,255,0.06);
+      color: var(--gold2);
+    }
+
+    .assignment-item {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .assignment-item strong {
+      display: block;
+      margin-bottom: 0.4rem;
+      color: var(--gold2);
+    }
+
+    .assignment-meta {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+
     .attendance-item:last-child {
       border-bottom: none;
     }
@@ -289,20 +358,31 @@
       </div>
 
       <div class="section">
-        <h2>Monthly Summary</h2>
-        <div class="coming-soon">
-          <p>Average attendance in month: <strong>--</strong></p>
-          <p>Attendance per lecture: <strong>--</strong></p>
-          <p style="margin-top: 1rem; font-size: 14px;">Coming soon...</p>
+        <h2>Attendance Stats</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-value" id="monthlyPct">--%</span>
+            <div class="stat-label">Monthly Attendance</div>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="livePct">--%</span>
+            <div class="stat-label">Overall Attendance</div>
+          </div>
+        </div>
+        <p id="monthlyDetail" class="attendance-date">Loading attendance details...</p>
+      </div>
+
+      <div class="section">
+        <h2>Session History</h2>
+        <div id="sessionHistory">
+          <p style="color: var(--muted);">Loading session history...</p>
         </div>
       </div>
 
       <div class="section">
-        <h2>Quick Stats</h2>
-        <div class="coming-soon">
-          <p>Total lectures attended: <strong>--</strong></p>
-          <p>Attendance percentage: <strong>--</strong></p>
-          <p style="margin-top: 1rem; font-size: 14px;">Coming soon...</p>
+        <h2>Assignments</h2>
+        <div id="assignmentList">
+          <p style="color: var(--muted);">Loading assignments...</p>
         </div>
       </div>
     </div>
@@ -336,6 +416,8 @@
       if (response.ok) {
         document.getElementById('codeInput').value = '';
         loadMyAttendance();
+        loadMyStats();
+        loadSessionHistory();
       }
     }
 
@@ -366,7 +448,89 @@
       }
     }
 
+    async function loadMyStats() {
+      try {
+        const response = await fetch('/my-stats');
+        if (!response.ok) throw new Error('Failed to load stats');
+        const data = await response.json();
+        document.getElementById('monthlyPct').textContent = `${data.monthly}%`;
+        document.getElementById('livePct').textContent = `${data.live}%`;
+        document.getElementById('monthlyPct').style.color = Number(data.monthly) >= 75 ? 'var(--success)' : 'var(--err)';
+        document.getElementById('livePct').style.color = Number(data.live) >= 75 ? 'var(--success)' : 'var(--err)';
+        document.getElementById('monthlyDetail').textContent = `${data.monthlyAttended} of ${data.monthlyTotal} lectures attended this month`;
+      } catch (error) {
+        document.getElementById('monthlyDetail').textContent = 'Could not load attendance stats.';
+        console.error('My stats error:', error);
+      }
+    }
+
+    async function loadSessionHistory() {
+      try {
+        const response = await fetch('/my-sessions');
+        if (!response.ok) throw new Error('Failed to load session history');
+        const data = await response.json();
+        if (data.length === 0) {
+          document.getElementById('sessionHistory').innerHTML = '<p style="color: var(--muted);">No sessions yet.</p>';
+          return;
+        }
+
+        const rows = data.map(row => `
+          <tr>
+            <td>${row.subject || 'Lecture'}</td>
+            <td>${new Date(row.created_at).toLocaleDateString()}</td>
+            <td>${new Date(row.created_at).toLocaleTimeString()}</td>
+            <td style="color: ${row.present ? 'var(--success)' : 'var(--err)'}; font-weight: 600;">${row.present ? 'Present' : 'Absent'}</td>
+            <td>${row.teacher_fname ? `${row.teacher_fname} ${row.teacher_lname}` : 'TBD'}</td>
+          </tr>
+        `).join('');
+
+        document.getElementById('sessionHistory').innerHTML = `
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Teacher</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (error) {
+        document.getElementById('sessionHistory').innerHTML = '<p style="color: var(--err);">Error loading session history.</p>';
+        console.error('Load session history error:', error);
+      }
+    }
+
+    async function loadAssignments() {
+      try {
+        const response = await fetch('/assignments');
+        if (!response.ok) throw new Error('Failed to load assignments');
+        const data = await response.json();
+        if (data.length === 0) {
+          document.getElementById('assignmentList').innerHTML = '<p style="color: var(--muted);">No assignments yet.</p>';
+          return;
+        }
+        const html = data.map(item => `
+          <div class="assignment-item">
+            <strong>${item.title}</strong>
+            <div>${item.description || 'No description provided.'}</div>
+            <div class="assignment-meta">Due: ${item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No deadline'}</div>
+          </div>
+        `).join('');
+        document.getElementById('assignmentList').innerHTML = html;
+      } catch (error) {
+        document.getElementById('assignmentList').innerHTML = '<p style="color: var(--err);">Error loading assignments.</p>';
+        console.error('Load assignments error:', error);
+      }
+    }
+
     loadMyAttendance();
+    loadMyStats();
+    loadSessionHistory();
+    loadAssignments();
   </script>
 </body>
 </html>
