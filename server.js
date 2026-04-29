@@ -11,10 +11,10 @@ const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// If running behind a proxy (common in cloud deployments), trust the first proxy.
+// If running behind a proxy (common in cloud deployments), trust the first proxy nigga
 app.set('trust proxy', 1);
 
-// Middleware
+// bich ka mamla
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
@@ -25,19 +25,19 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000  // 24 hours
+    maxAge: 24 * 60 * 60 * 1000  
   }
 }));
 
-// Serve static files (frontend)
+
 app.use(express.static(path.join(__dirname)));
 
 // Routes
 
-// Serve the login page
+// login page
 app.get('/', (req, res) => {
   if (req.session.userId) {
-    // If logged in, redirect to dashboard or appropriate page
+    // If logged in, redirect to dashboard or refresh 
     if (req.session.role === 'teacher') {
       res.sendFile(path.join(__dirname, 'teacher.html')); // We'll create this
     } else {
@@ -80,7 +80,6 @@ app.post('/signup', async (req, res) => {
   const department = req.body.department ? req.body.department.trim() : '';
   const empId = req.body.empId ? req.body.empId.trim() : '';
 
-  // Simple validation
   if (!role || !email || !password) {
     return res.status(400).json({ success: false, message: 'Role, email, and password are required' });
   }
@@ -127,7 +126,7 @@ app.post('/generate-code', async (req, res) => {
     const code = Math.floor(10000 + Math.random() * 90000).toString();
     try {
       await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()]);
-      await db.execute('INSERT OR IGNORE INTO sessions (code, created_by, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()]);
+      await db.execute('INSERT OR IGNORE INTO attendance_sessions (code, created_by, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()]);
       res.json({ code });
     } catch (err) {
       if (err.message && err.message.includes('UNIQUE constraint failed')) {
@@ -210,8 +209,8 @@ app.get('/sessions', async (req, res) => {
   try {
     const result = await db.execute(`
       SELECT code as id, subject, created_at, expires_at,
-             (SELECT COUNT(*) FROM attendance WHERE qr_id = sessions.code) as attendance_count
-      FROM sessions
+             (SELECT COUNT(*) FROM attendance WHERE qr_id = attendance_sessions.code) as attendance_count
+      FROM attendance_sessions
       WHERE created_by = ?
       ORDER BY created_at DESC
     `, [req.session.userId]);
@@ -235,7 +234,7 @@ app.get('/session-attendance', async (req, res) => {
 
   try {
     // First verify the code belongs to this teacher
-    const codeResult = await db.execute('SELECT code as id, subject, created_at, expires_at FROM sessions WHERE code = ? AND created_by = ?', [code, req.session.userId]);
+    const codeResult = await db.execute('SELECT code as id, subject, created_at, expires_at FROM attendance_sessions WHERE code = ? AND created_by = ?', [code, req.session.userId]);
     const codeRow = codeResult.rows[0];
     if (!codeRow) {
       return res.status(404).json({ error: 'Session not found' });
@@ -413,21 +412,21 @@ app.get('/my-stats', async (req, res) => {
   }
   try {
     const totalResult = await db.execute({
-      sql: `SELECT COUNT(*) AS total FROM sessions
+      sql: `SELECT COUNT(*) AS total FROM attendance_sessions
             WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')`,
       args: []
     });
 
     const attendedResult = await db.execute({
       sql: `SELECT COUNT(*) AS attended FROM attendance a
-            JOIN sessions s ON a.qr_id = s.code
+            JOIN attendance_sessions s ON a.qr_id = s.code
             WHERE a.student_id = ?
               AND strftime('%Y-%m', s.created_at) = strftime('%Y-%m', 'now', 'localtime')`,
       args: [req.session.userId]
     });
 
     const allTimeTotal = await db.execute({
-      sql: `SELECT COUNT(*) AS total FROM sessions`,
+      sql: `SELECT COUNT(*) AS total FROM attendance_sessions`,
       args: []
     });
 
@@ -522,7 +521,7 @@ app.get('/download/monthly-report', async (req, res) => {
       args: []
     });
     const sessionsResult = await db.execute({
-      sql: `SELECT code, subject, created_at FROM sessions WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime') ORDER BY created_at`,
+      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime') ORDER BY created_at`,
       args: []
     });
 
@@ -564,7 +563,7 @@ app.get('/download/lecture/:code', async (req, res) => {
   try {
     const code = req.params.code;
     const sessionResult = await db.execute({
-      sql: `SELECT code, subject, created_at FROM sessions WHERE code = ?`,
+      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE code = ?`,
       args: [code]
     });
     const session = sessionResult.rows[0];

@@ -33,7 +33,7 @@ async function initDB() {
     )`);
 
     // Sessions table: tracks each generated attendance session
-    await db.execute(`CREATE TABLE IF NOT EXISTS sessions (
+    await db.execute(`CREATE TABLE IF NOT EXISTS attendance_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT UNIQUE NOT NULL,
       created_by INTEGER,
