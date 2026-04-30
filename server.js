@@ -600,6 +600,112 @@ app.get('/download/lecture/:code', async (req, res) => {
   }
 });
 
+// Get specific student attendance history (by PRN or email)
+app.get('/student-attendance', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  const { email, prn } = req.query;
+  if (!email && !prn) {
+    return res.status(400).json({ error: 'Email or PRN required' });
+  }
+  try {
+    const userResult = await db.execute(
+      'SELECT id, first_name, last_name, email, prn FROM users WHERE role = ? AND (email = ? OR prn = ?)',
+      ['student', email || '', prn || '']
+    );
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    const attendanceResult = await db.execute(`
+      SELECT a.id, a.marked_at, q.subject, q.id as session_code
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      WHERE a.student_id = ?
+      ORDER BY a.marked_at DESC
+    `, [user.id]);
+    res.json({
+      student: user,
+      attendance: attendanceResult.rows,
+      total: attendanceResult.rows.length
+    });
+  } catch (err) {
+    console.error('Student attendance error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Add manual attendance for a student
+app.post('/add-attendance', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  const { email, prn, session_code } = req.body;
+  if (!session_code) {
+    return res.status(400).json({ error: 'Session code required' });
+  }
+  if (!email && !prn) {
+    return res.status(400).json({ error: 'Email or PRN required' });
+  }
+  try {
+    // Find student
+    const userResult = await db.execute(
+      'SELECT id FROM users WHERE role = ? AND (email = ? OR prn = ?)',
+      ['student', email || '', prn || '']
+    );
+    const student = userResult.rows[0];
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    // Verify session belongs to this teacher
+    const sessionResult = await db.execute(
+      'SELECT id FROM qr_codes WHERE id = ? AND teacher_id = ?',
+      [session_code, req.session.userId]
+    );
+    if (!sessionResult.rows[0]) {
+      return res.status(403).json({ error: 'Session not found or does not belong to you' });
+    }
+    // Add attendance (ignore if already exists)
+    await db.execute(
+      'INSERT OR IGNORE INTO attendance (student_id, qr_id) VALUES (?, ?)',
+      [student.id, session_code]
+    );
+    res.json({ success: true, message: 'Attendance added for student' });
+  } catch (err) {
+    console.error('Add attendance error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Delete attendance record
+app.post('/delete-attendance', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  const { attendance_id } = req.body;
+  if (!attendance_id) {
+    return res.status(400).json({ error: 'Attendance ID required' });
+  }
+  try {
+    // Verify attendance belongs to this teacher's session
+    const checkResult = await db.execute(`
+      SELECT a.id FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      WHERE a.id = ? AND q.teacher_id = ?
+    `, [attendance_id, req.session.userId]);
+    if (!checkResult.rows[0]) {
+      return res.status(403).json({ error: 'Attendance record not found or unauthorized' });
+    }
+    // Delete attendance
+    await db.execute('DELETE FROM attendance WHERE id = ?', [attendance_id]);
+    res.json({ success: true, message: 'Attendance record deleted' });
+  } catch (err) {
+    console.error('Delete attendance error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);

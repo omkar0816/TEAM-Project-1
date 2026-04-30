@@ -65,12 +65,17 @@ To pre-populate the system with your class student data:
    "Jane Smith",jane.smith@wadia.ac.in,72123456790,FE,Electronics & Telecom 1
    ```
 
-2. **Import Students**:
+2. **Import Students from CSV**:
    ```bash
    node import_students.js your_students.csv
    ```
 
-3. **Default Login**: Students can login with:
+3. **Import Students from SQL** (if your file contains `INSERT` rows into `PERSONAL_INFO`):
+   ```bash
+   node import_sql_students.js collegeattendance.sql
+   ```
+
+4. **Default Login**: Students can login with:
    - **Email**: Their college email
    - **Password**: Their PRN number (can be changed later)
 

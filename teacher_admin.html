@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teacher - Attendance Management</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    .content {
+      padding: 30px;
+    }
+    .search-section {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    input, select, button {
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    input {
+      flex: 1;
+      min-width: 200px;
+    }
+    button {
+      padding: 12px 24px;
+      background: #667eea;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    button.danger {
+      background: #e74c3c;
+    }
+    button.danger:hover {
+      background: #c0392b;
+    }
+    button.success {
+      background: #27ae60;
+    }
+    button.success:hover {
+      background: #229954;
+    }
+    .student-info {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .student-info.show {
+      display: block;
+    }
+    .student-info h3 {
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .info-item {
+      padding: 10px;
+      background: white;
+      border-radius: 4px;
+      border-left: 4px solid #667eea;
+    }
+    .info-label {
+      font-size: 12px;
+      color: #888;
+      text-transform: uppercase;
+    }
+    .info-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+    .attendance-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      display: none;
+    }
+    .attendance-table.show {
+      display: table;
+    }
+    .attendance-table th {
+      background: #667eea;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+    }
+    .attendance-table td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .attendance-table tr:hover {
+      background: #f9f9f9;
+    }
+    .action-buttons {
+      display: flex;
+      gap: 5px;
+    }
+    .action-buttons button {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    .add-attendance-form {
+      background: #f0f4ff;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 20px;
+      display: none;
+    }
+    .add-attendance-form.show {
+      display: block;
+    }
+    .form-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .form-row input, .form-row select {
+      flex: 1;
+      min-width: 150px;
+    }
+    .status-message {
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      display: none;
+      text-align: center;
+      font-weight: 600;
+    }
+    .status-message.show {
+      display: block;
+    }
+    .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .logout-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .logout-btn:hover {
+      background: #c0392b;
+    }
+  </style>
+</head>
+<body>
+  <button class="logout-btn" onclick="logout()">Logout</button>
+  <div class="container">
+    <header>
+      <h1>🎓 Attendance Management System</h1>
+      <p>Search and manage student attendance</p>
+    </header>
+    <div class="content">
+      <div class="status-message" id="statusMessage"></div>
+      
+      <div class="search-section">
+        <input type="email" id="studentEmail" placeholder="Student Email (e.g., john@wadia.ac.in)">
+        <input type="text" id="studentPRN" placeholder="Or PRN (e.g., 72123456789)">
+        <button onclick="searchStudent()">🔍 Search Student</button>
+      </div>
+
+      <div class="student-info" id="studentInfo">
+        <h3>Student Information</h3>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Name</div>
+            <div class="info-value" id="studentName">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Email</div>
+            <div class="info-value" id="studentEmailDisplay">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">PRN</div>
+            <div class="info-value" id="studentPRNDisplay">-</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Total Attendance</div>
+            <div class="info-value" id="attendanceCount">0</div>
+          </div>
+        </div>
+      </div>
+
+      <table class="attendance-table" id="attendanceTable">
+        <thead>
+          <tr>
+            <th>Date & Time</th>
+            <th>Subject</th>
+            <th>Session Code</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="attendanceTableBody">
+        </tbody>
+      </table>
+
+      <div class="add-attendance-form" id="addAttendanceForm">
+        <h3 style="margin-bottom: 15px;">➕ Add Attendance Manually</h3>
+        <div class="form-row">
+          <select id="sessionCodeSelect" placeholder="Select Session Code">
+            <option value="">-- Select a Session --</option>
+          </select>
+          <button class="success" onclick="addAttendance()">Add Attendance</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStudent = null;
+
+    async function searchStudent() {
+      const email = document.getElementById('studentEmail').value.trim();
+      const prn = document.getElementById('studentPRN').value.trim();
+
+      if (!email && !prn) {
+        showStatus('Please enter email or PRN', 'error');
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams();
+        if (email) params.append('email', email);
+        if (prn) params.append('prn', prn);
+
+        const response = await fetch(`/student-attendance?${params}`);
+        if (!response.ok) {
+          const error = await response.json();
+          showStatus(error.error || 'Student not found', 'error');
+          hideStudentInfo();
+          return;
+        }
+
+        const data = await response.json();
+        currentStudent = data.student;
+
+        document.getElementById('studentName').textContent = 
+          `${data.student.first_name || ''} ${data.student.last_name || ''}`.trim() || 'N/A';
+        document.getElementById('studentEmailDisplay').textContent = data.student.email;
+        document.getElementById('studentPRNDisplay').textContent = data.student.prn;
+        document.getElementById('attendanceCount').textContent = data.total;
+
+        // Populate attendance table
+        const tbody = document.getElementById('attendanceTableBody');
+        tbody.innerHTML = '';
+        if (data.attendance.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">No attendance records found</td></tr>';
+        } else {
+          data.attendance.forEach(att => {
+            const date = new Date(att.marked_at).toLocaleString();
+            tbody.innerHTML += `
+              <tr>
+                <td>${date}</td>
+                <td>${att.subject || 'N/A'}</td>
+                <td>${att.session_code}</td>
+                <td>
+                  <div class="action-buttons">
+                    <button class="danger" onclick="deleteAttendance(${att.id})">Delete</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          });
+        }
+
+        // Load sessions for add attendance dropdown
+        await loadSessions();
+
+        document.getElementById('studentInfo').classList.add('show');
+        document.getElementById('attendanceTable').classList.add('show');
+        document.getElementById('addAttendanceForm').classList.add('show');
+        showStatus(`Found ${currentStudent.first_name} ${currentStudent.last_name}`, 'success');
+      } catch (err) {
+        console.error('Error searching student:', err);
+        showStatus('Error searching student', 'error');
+        hideStudentInfo();
+      }
+    }
+
+    async function loadSessions() {
+      try {
+        const response = await fetch('/sessions');
+        if (!response.ok) return;
+        const sessions = await response.json();
+        
+        const select = document.getElementById('sessionCodeSelect');
+        select.innerHTML = '<option value="">-- Select a Session --</option>';
+        sessions.forEach(session => {
+          const date = new Date(session.created_at).toLocaleDateString();
+          select.innerHTML += `<option value="${session.id}">${session.subject} (${date})</option>`;
+        });
+      } catch (err) {
+        console.error('Error loading sessions:', err);
+      }
+    }
+
+    async function addAttendance() {
+      const sessionCode = document.getElementById('sessionCodeSelect').value;
+      if (!sessionCode) {
+        showStatus('Please select a session', 'error');
+        return;
+      }
+      if (!currentStudent) {
+        showStatus('Please search for a student first', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch('/add-attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: currentStudent.email,
+            prn: currentStudent.prn,
+            session_code: sessionCode
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          showStatus(error.error || 'Failed to add attendance', 'error');
+          return;
+        }
+
+        showStatus('Attendance added successfully!', 'success');
+        // Refresh student data
+        await searchStudent();
+      } catch (err) {
+        console.error('Error adding attendance:', err);
+        showStatus('Error adding attendance', 'error');
+      }
+    }
+
+    async function deleteAttendance(attendanceId) {
+      if (!confirm('Are you sure you want to delete this attendance record?')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/delete-attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attendance_id: attendanceId })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          showStatus(error.error || 'Failed to delete attendance', 'error');
+          return;
+        }
+
+        showStatus('Attendance deleted successfully!', 'success');
+        await searchStudent();
+      } catch (err) {
+        console.error('Error deleting attendance:', err);
+        showStatus('Error deleting attendance', 'error');
+      }
+    }
+
+    function showStatus(message, type) {
+      const elem = document.getElementById('statusMessage');
+      elem.textContent = message;
+      elem.className = `status-message show ${type}`;
+      setTimeout(() => {
+        elem.classList.remove('show');
+      }, 4000);
+    }
+
+    function hideStudentInfo() {
+      document.getElementById('studentInfo').classList.remove('show');
+      document.getElementById('attendanceTable').classList.remove('show');
+      document.getElementById('addAttendanceForm').classList.remove('show');
+    }
+
+    async function logout() {
+      await fetch('/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
+    // Check if logged in as teacher
+    async function checkAuth() {
+      const response = await fetch('/check-session');
+      const data = await response.json();
+      if (!data.loggedIn || data.role !== 'teacher') {
+        window.location.href = '/';
+      }
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>
