@@ -10,16 +10,22 @@ async function initDB() {
     // Users table for students and teachers
     await db.execute(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT NOT NULL, -- 'student' or 'teacher'
+      prn TEXT, -- for students
       first_name TEXT,
       last_name TEXT,
-      prn TEXT, -- for students
-      year TEXT, -- for students
+      email TEXT UNIQUE NOT NULL,
       department TEXT,
+      role TEXT NOT NULL, -- 'student' or 'teacher'
+      password TEXT NOT NULL,
+      year TEXT, -- for students
       emp_id TEXT, -- for teachers
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+     FOREIGN KEY (prn) REFERENCES Personal_info(PRN)
+    )`);
+     await db.execute(`CREATE TABLE IF NOT EXISTS Personal_info (
+      PRN TEXT PRIMARY KEY,
+      NAME_STD TEXT NOT NULL,
+      EMAIL TEXT UNIQUE NOT NULL
     )`);
 
     // QR codes table
