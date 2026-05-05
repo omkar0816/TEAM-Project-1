@@ -10,9 +10,9 @@ async function initDB() {
     // Users table for students and teachers
     await db.execute(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prn TEXT, -- for students
-      first_name TEXT,
-      last_name TEXT,
+      prn TEXT UNIQUE, -- for students
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       department TEXT,
       role TEXT NOT NULL, -- 'student' or 'teacher'
@@ -20,13 +20,7 @@ async function initDB() {
       year TEXT, -- for students
       subject TEXT, -- for teachers
       emp_id TEXT, -- for teachers
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-     FOREIGN KEY (prn) REFERENCES Personal_info(PRN)
-    )`);
-     await db.execute(`CREATE TABLE IF NOT EXISTS Personal_info (
-      PRN TEXT PRIMARY KEY,
-      NAME_STD TEXT NOT NULL,
-      EMAIL TEXT UNIQUE NOT NULL
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
     // Ensure older databases also get a subject column for teachers
@@ -48,25 +42,14 @@ async function initDB() {
       FOREIGN KEY (teacher_id) REFERENCES users(id)
     )`);
 
-    // Sessions table: tracks each generated attendance session
-    await db.execute(`CREATE TABLE IF NOT EXISTS attendance_sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      code TEXT UNIQUE NOT NULL,
-      created_by INTEGER,
-      subject TEXT,
-      created_at TEXT DEFAULT (datetime('now','localtime')),
-      expires_at TEXT,
-      FOREIGN KEY (created_by) REFERENCES users(id)
-    )`);
-
-    // Attendance table
+    // Attendance table with integrity constraints
     await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       student_id INTEGER NOT NULL,
       qr_id TEXT NOT NULL,
       marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (student_id) REFERENCES users(id),
-      FOREIGN KEY (qr_id) REFERENCES qr_codes(id),
+      FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE RESTRICT,
+      FOREIGN KEY (qr_id) REFERENCES qr_codes(id) ON DELETE RESTRICT,
       UNIQUE(student_id, qr_id)
     )`);
 

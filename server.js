@@ -158,7 +158,6 @@ app.post('/generate-code', async (req, res) => {
     const code = Math.floor(10000 + Math.random() * 90000).toString();
     try {
       await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, sessionSubject, expiresAt.toISOString()]);
-      await db.execute('INSERT OR IGNORE INTO attendance_sessions (code, created_by, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, sessionSubject, expiresAt.toISOString()]);
       res.json({ code, subject: sessionSubject });
     } catch (err) {
       if (err.message && err.message.includes('UNIQUE constraint failed')) {
@@ -219,19 +218,30 @@ app.post('/mark-attendance-post', async (req, res) => {
     return res.status(403).send('Unauthorized');
   }
   try {
-    const result = await db.execute('SELECT * FROM qr_codes WHERE id = ? AND expires_at > datetime(\'now\')', [code]);
-    const codeRow = result.rows[0];
-    if (!codeRow) {
-      return res.send('Code expired');
+    const studentId = req.session.userId;
+    // Validate code exists and is not expired
+    const codeResult = await db.execute('SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > datetime(\'now\')', [code]);
+    if (!codeResult.rows[0]) {
+      return res.send('Code expired or invalid');
     }
-    const insertResult = await db.execute('INSERT OR IGNORE INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
-    if (insertResult.rowsAffected === 0) {
-      return res.send('Already marked attendance for this session.');
+    // Validate student exists and is not already marked for this code
+    const studentResult = await db.execute('SELECT id FROM users WHERE id = ? AND role = \'student\'', [studentId]);
+    if (!studentResult.rows[0]) {
+      return res.status(403).send('Unauthorized or student not found');
     }
-    res.send('Marked!');
+    // Insert attendance with proper error handling
+    try {
+      await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [studentId, code]);
+      res.send('Marked!');
+    } catch (insertErr) {
+      if (insertErr.message && insertErr.message.includes('UNIQUE constraint failed')) {
+        return res.send('Already marked attendance for this code.');
+      }
+      throw insertErr;
+    }
   } catch (err) {
     console.error('Mark attendance post error:', err);
-    res.status(500).send('Error');
+    res.status(500).send('Error: ' + (err.message || 'unknown'));
   }
 });
 
@@ -243,10 +253,10 @@ app.get('/sessions', async (req, res) => {
 
   try {
     const result = await db.execute(`
-      SELECT code as id, subject, created_at, expires_at,
-             (SELECT COUNT(*) FROM attendance WHERE qr_id = attendance_sessions.code) as attendance_count
-      FROM attendance_sessions
-      WHERE created_by = ?
+      SELECT id, subject, created_at, expires_at,
+             (SELECT COUNT(*) FROM attendance WHERE qr_id = qr_codes.id) as attendance_count
+      FROM qr_codes
+      WHERE teacher_id = ?
       ORDER BY created_at DESC
     `, [req.session.userId]);
     res.json(result.rows);
@@ -269,7 +279,7 @@ app.get('/session-attendance', async (req, res) => {
 
   try {
     // First verify the code belongs to this teacher
-    const codeResult = await db.execute('SELECT code as id, subject, created_at, expires_at FROM attendance_sessions WHERE code = ? AND created_by = ?', [code, req.session.userId]);
+    const codeResult = await db.execute('SELECT id, subject, created_at, expires_at FROM qr_codes WHERE id = ? AND teacher_id = ?', [code, req.session.userId]);
     const codeRow = codeResult.rows[0];
     if (!codeRow) {
       return res.status(404).json({ error: 'Session not found' });
@@ -425,13 +435,13 @@ app.get('/my-sessions', async (req, res) => {
   }
   try {
     const result = await db.execute(`
-      SELECT s.code, s.subject, s.created_at, s.expires_at,
+      SELECT q.id as code, q.subject, q.created_at, q.expires_at,
              CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as present,
              u.first_name as teacher_fname, u.last_name as teacher_lname
-      FROM attendance_sessions s
-      LEFT JOIN attendance a ON s.code = a.qr_id AND a.student_id = ?
-      LEFT JOIN users u ON s.created_by = u.id
-      ORDER BY s.created_at DESC
+      FROM qr_codes q
+      LEFT JOIN attendance a ON q.id = a.qr_id AND a.student_id = ?
+      LEFT JOIN users u ON q.teacher_id = u.id
+      ORDER BY q.created_at DESC
     `, [req.session.userId]);
     res.json(result.rows);
   } catch (err) {
@@ -447,21 +457,21 @@ app.get('/my-stats', async (req, res) => {
   }
   try {
     const totalResult = await db.execute({
-      sql: `SELECT COUNT(*) AS total FROM attendance_sessions
+      sql: `SELECT COUNT(*) AS total FROM qr_codes
             WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')`,
       args: []
     });
 
     const attendedResult = await db.execute({
       sql: `SELECT COUNT(*) AS attended FROM attendance a
-            JOIN attendance_sessions s ON a.qr_id = s.code
+            JOIN qr_codes q ON a.qr_id = q.id
             WHERE a.student_id = ?
-              AND strftime('%Y-%m', s.created_at) = strftime('%Y-%m', 'now', 'localtime')`,
+              AND strftime('%Y-%m', q.created_at) = strftime('%Y-%m', 'now', 'localtime')`,
       args: [req.session.userId]
     });
 
     const allTimeTotal = await db.execute({
-      sql: `SELECT COUNT(*) AS total FROM attendance_sessions`,
+      sql: `SELECT COUNT(*) AS total FROM qr_codes`,
       args: []
     });
 
@@ -561,7 +571,7 @@ app.get('/download/monthly-report', async (req, res) => {
       args: []
     });
     const sessionsResult = await db.execute({
-      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE created_by = ? AND strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime') ORDER BY created_at`,
+      sql: `SELECT id, subject, created_at FROM qr_codes WHERE teacher_id = ? AND strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime') ORDER BY created_at`,
       args: [req.session.userId]
     });
 
@@ -575,7 +585,7 @@ app.get('/download/monthly-report', async (req, res) => {
     sheet.addRow(headers);
     sheet.getRow(5).font = { bold: true };
 
-    const sessionCodes = sessionsResult.rows.map(s => s.code);
+    const sessionCodes = sessionsResult.rows.map(s => s.id);
     for (const student of students.rows) {
       const attendedCodes = new Set();
       if (sessionCodes.length > 0) {
@@ -611,7 +621,7 @@ app.get('/download/lecture/:code', async (req, res) => {
   try {
     const code = req.params.code;
     const sessionResult = await db.execute({
-      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE code = ? AND created_by = ?`,
+      sql: `SELECT id, subject, created_at FROM qr_codes WHERE id = ? AND teacher_id = ?`,
       args: [code, req.session.userId]
     });
     const session = sessionResult.rows[0];
