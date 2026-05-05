@@ -710,6 +710,21 @@
             </div>
             <span class="error-msg">Required.</span>
           </div>
+          <div class="field" id="fieldTeacherSubject">
+            <label>Teaching Subject</label>
+            <div class="input-wrap">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2z" stroke="currentColor" stroke-width="1.3"/><path d="M2 6h12" stroke="currentColor" stroke-width="1.3"/></svg>
+              <select id="signupTeacherSubject">
+                <option value="" disabled selected>Select subject</option>
+                <option>Engineering Mathematic - 2</option>
+                <option>basic electronics engineering</option>
+                <option>engineering physics</option>
+                <option>programming problem solving</option>
+                <option>engineering Graphics</option>
+              </select>
+            </div>
+            <span class="error-msg">Required.</span>
+          </div>
         </div>
 
         <div class="field" id="fieldSignupPw">
@@ -853,8 +868,10 @@
     } else {
       empId = document.getElementById('signupEmpId').value.trim();
       teacherDept = document.getElementById('signupTeacherDept').value;
+      const teacherSubject = document.getElementById('signupTeacherSubject').value;
       if (!empId) { setError('fieldEmpId', true); ok = false; }
       if (!teacherDept) { setError('fieldTeacherDept', true); ok = false; }
+      if (!teacherSubject) { setError('fieldTeacherSubject', true); ok = false; }
     }
 
     if (ok) {
@@ -865,6 +882,7 @@
         body.department = dept;
       } else {
         body.department = teacherDept;
+        body.subject = document.getElementById('signupTeacherSubject').value;
         body.empId = empId;
       }
       fetch('/signup', {

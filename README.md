@@ -45,14 +45,26 @@ A modern web-based attendance management system for Wadia College of Engineering
    npm install
    ```
 
-3. Start the server:
+3. Create a `.env` file by copying the example:
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Fill in your Turso connection values in `.env` if you want to use a remote database:
+   ```env
+   TURSO_DB_URL=libsql://your-database-url
+   TURSO_AUTH_TOKEN=your-turso-auth-token
+   SESSION_SECRET=some-strong-secret
+   ```
+
+5. Start the server:
    ```bash
    npm start
    # or
    node server.js
    ```
 
-4. Open your browser and navigate to `http://localhost:3000`
+6. Open your browser and navigate to `http://localhost:3000`
 
 ## Student Data Import
 

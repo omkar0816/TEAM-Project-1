@@ -18,6 +18,7 @@ async function initDB() {
       role TEXT NOT NULL, -- 'student' or 'teacher'
       password TEXT NOT NULL,
       year TEXT, -- for students
+      subject TEXT, -- for teachers
       emp_id TEXT, -- for teachers
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
      FOREIGN KEY (prn) REFERENCES Personal_info(PRN)
@@ -27,6 +28,15 @@ async function initDB() {
       NAME_STD TEXT NOT NULL,
       EMAIL TEXT UNIQUE NOT NULL
     )`);
+
+    // Ensure older databases also get a subject column for teachers
+    try {
+      await db.execute(`ALTER TABLE users ADD COLUMN subject TEXT`);
+    } catch (err) {
+      if (!/duplicate column|duplicate name|already has column/i.test(err.message)) {
+        throw err;
+      }
+    }
 
     // QR codes table
     await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (

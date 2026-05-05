@@ -1,8 +1,9 @@
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@libsql/client');
 
-const db = createClient({ url: process.env.TURSO_DB_URL || 'file:attendance.db' });
+const db = createClient({ url: process.env.TURSO_DB_URL || 'file:attendance.db', authToken: process.env.TURSO_AUTH_TOKEN });
 
 function unquote(value) {
   if (value === null || value === undefined) return null;

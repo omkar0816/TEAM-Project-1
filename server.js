@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
@@ -79,6 +80,14 @@ app.post('/signup', async (req, res) => {
   const year = req.body.year ? req.body.year.trim() : '';
   const department = req.body.department ? req.body.department.trim() : '';
   const empId = req.body.empId ? req.body.empId.trim() : '';
+  const teacherSubject = req.body.teacherSubject ? req.body.teacherSubject.trim() : '';
+  const allowedSubjects = [
+    'Engineering Mathematic - 2',
+    'basic electronics engineering',
+    'engineering physics',
+    'programming problem solving',
+    'engineering Graphics'
+  ];
 
   if (!role || !email || !password) {
     return res.status(400).json({ success: false, message: 'Role, email, and password are required' });
@@ -86,9 +95,12 @@ app.post('/signup', async (req, res) => {
   if (!['student', 'teacher'].includes(role)) {
     return res.status(400).json({ success: false, message: 'Invalid role' });
   }
+  if (role === 'teacher' && !allowedSubjects.includes(teacherSubject)) {
+    return res.status(400).json({ success: false, message: 'Teacher subject is required and must be one of the approved subjects.' });
+  }
   try {
-    await db.execute('INSERT INTO users (email, password, role, first_name, last_name, prn, year, department, emp_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [email, password, role, firstName, lastName, prn, year, department, empId]);
+    await db.execute('INSERT INTO users (email, password, role, first_name, last_name, prn, year, department, subject, emp_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [email, password, role, firstName, lastName, prn, year, department, teacherSubject, empId]);
     res.json({ success: true });
   } catch (err) {
     console.error('Signup error:', err.message);
@@ -110,6 +122,23 @@ app.get('/check-session', (req, res) => {
   res.json({ loggedIn: !!req.session.userId, role: req.session.role });
 });
 
+app.get('/profile', async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  try {
+    const result = await db.execute('SELECT id, email, role, first_name, last_name, department, subject, emp_id FROM users WHERE id = ?', [req.session.userId]);
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error('Profile error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // Generate Code (for teachers)
 app.post('/generate-code', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
@@ -118,6 +147,9 @@ app.post('/generate-code', async (req, res) => {
 
   const { subject } = req.body;
   const expiresAt = new Date(Date.now() + 50 * 1000); // 50 seconds
+  const teacherResult = await db.execute('SELECT subject FROM users WHERE id = ?', [req.session.userId]);
+  const teacherInfo = teacherResult.rows[0] || {};
+  const sessionSubject = subject || teacherInfo.subject || 'Lecture';
   const tryInsertCode = async (attempt = 0) => {
     if (attempt >= 5) {
       return res.status(500).json({ error: 'Unable to generate a unique code. Please try again.' });
@@ -125,9 +157,9 @@ app.post('/generate-code', async (req, res) => {
 
     const code = Math.floor(10000 + Math.random() * 90000).toString();
     try {
-      await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()]);
-      await db.execute('INSERT OR IGNORE INTO attendance_sessions (code, created_by, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, subject || 'Lecture', expiresAt.toISOString()]);
-      res.json({ code });
+      await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, sessionSubject, expiresAt.toISOString()]);
+      await db.execute('INSERT OR IGNORE INTO attendance_sessions (code, created_by, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, sessionSubject, expiresAt.toISOString()]);
+      res.json({ code, subject: sessionSubject });
     } catch (err) {
       if (err.message && err.message.includes('UNIQUE constraint failed')) {
         return tryInsertCode(attempt + 1);
@@ -192,7 +224,10 @@ app.post('/mark-attendance-post', async (req, res) => {
     if (!codeRow) {
       return res.send('Code expired');
     }
-    await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
+    const insertResult = await db.execute('INSERT OR IGNORE INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
+    if (insertResult.rowsAffected === 0) {
+      return res.send('Already marked attendance for this session.');
+    }
     res.send('Marked!');
   } catch (err) {
     console.error('Mark attendance post error:', err);
@@ -393,7 +428,7 @@ app.get('/my-sessions', async (req, res) => {
       SELECT s.code, s.subject, s.created_at, s.expires_at,
              CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as present,
              u.first_name as teacher_fname, u.last_name as teacher_lname
-      FROM sessions s
+      FROM attendance_sessions s
       LEFT JOIN attendance a ON s.code = a.qr_id AND a.student_id = ?
       LEFT JOIN users u ON s.created_by = u.id
       ORDER BY s.created_at DESC
@@ -484,8 +519,8 @@ app.get('/assignments', async (req, res) => {
   }
   try {
     const result = await db.execute({
-      sql: `SELECT id, title, description, due_date, created_by FROM assignments ORDER BY due_date ASC`,
-      args: []
+      sql: `SELECT id, title, description, due_date, created_by FROM assignments WHERE created_by = ? ORDER BY due_date ASC`,
+      args: [req.session.userId]
     });
     res.json(result.rows);
   } catch (err) {
@@ -516,32 +551,45 @@ app.get('/download/monthly-report', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
   try {
+    const teacherResult = await db.execute({
+      sql: `SELECT first_name, last_name, subject FROM users WHERE id = ?`,
+      args: [req.session.userId]
+    });
+    const teacher = teacherResult.rows[0] || {};
     const students = await db.execute({
       sql: `SELECT id, first_name, last_name, email FROM users WHERE role = 'student' ORDER BY first_name, last_name`,
       args: []
     });
     const sessionsResult = await db.execute({
-      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime') ORDER BY created_at`,
-      args: []
+      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE created_by = ? AND strftime('%Y-%m', created_at) = strftime('%Y-%m','now','localtime') ORDER BY created_at`,
+      args: [req.session.userId]
     });
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Monthly Report');
-    const headers = ['Name', 'Email', ...sessionsResult.rows.map(s => new Date(s.created_at).toLocaleDateString()), 'Attendance %'];
+    sheet.addRow(['Teacher', `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim()]);
+    sheet.addRow(['Subject', teacher.subject || 'N/A']);
+    sheet.addRow(['Month', new Date().toLocaleString('default', { month: 'long', year: 'numeric' })]);
+    sheet.addRow([]);
+    const headers = ['Name', 'Email', ...sessionsResult.rows.map(s => `${new Date(s.created_at).toLocaleDateString()} (${s.subject || 'Lecture'})`), 'Attendance %'];
     sheet.addRow(headers);
-    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(5).font = { bold: true };
 
+    const sessionCodes = sessionsResult.rows.map(s => s.code);
     for (const student of students.rows) {
-      const attended = await db.execute({
-        sql: `SELECT qr_id FROM attendance WHERE student_id = ?`,
-        args: [student.id]
-      });
-      const attendedCodes = new Set(attended.rows.map(row => row.qr_id));
+      const attendedCodes = new Set();
+      if (sessionCodes.length > 0) {
+        const attended = await db.execute({
+          sql: `SELECT qr_id FROM attendance WHERE student_id = ? AND qr_id IN (${sessionCodes.map(() => '?').join(',')})`,
+          args: [student.id, ...sessionCodes]
+        });
+        attended.rows.forEach(row => attendedCodes.add(row.qr_id));
+      }
       const row = [
         `${student.first_name || ''} ${student.last_name || ''}`.trim(),
         student.email,
-        ...sessionsResult.rows.map(s => attendedCodes.has(s.code) ? '✅' : '❌'),
-        sessionsResult.rows.length > 0 ? (([...attendedCodes].filter(code => sessionsResult.rows.some(s => s.code === code)).length / sessionsResult.rows.length) * 100).toFixed(1) + '%' : '0%'
+        ...sessionCodes.map(code => attendedCodes.has(code) ? '✅' : '❌'),
+        sessionCodes.length > 0 ? ((attendedCodes.size / sessionCodes.length) * 100).toFixed(1) + '%' : '0%'
       ];
       sheet.addRow(row);
     }
@@ -563,8 +611,8 @@ app.get('/download/lecture/:code', async (req, res) => {
   try {
     const code = req.params.code;
     const sessionResult = await db.execute({
-      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE code = ?`,
-      args: [code]
+      sql: `SELECT code, subject, created_at FROM attendance_sessions WHERE code = ? AND created_by = ?`,
+      args: [code, req.session.userId]
     });
     const session = sessionResult.rows[0];
     if (!session) {
@@ -580,11 +628,20 @@ app.get('/download/lecture/:code', async (req, res) => {
       args: []
     });
 
+    const teacherProfile = await db.execute({
+      sql: `SELECT first_name, last_name FROM users WHERE id = ?`,
+      args: [req.session.userId]
+    });
+    const teacherName = teacherProfile.rows[0] ? `${teacherProfile.rows[0].first_name || ''} ${teacherProfile.rows[0].last_name || ''}`.trim() : 'Teacher';
     const attendedEmails = new Set(attendedResult.rows.map(r => r.email));
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Lecture Attendance');
+    sheet.addRow(['Teacher', teacherName]);
+    sheet.addRow(['Subject', session.subject || 'Lecture']);
+    sheet.addRow(['Date', new Date(session.created_at).toLocaleString()]);
+    sheet.addRow([]);
     sheet.addRow(['Name', 'Email', 'Status']);
-    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(5).font = { bold: true };
 
     for (const s of allStudents.rows) {
       sheet.addRow([`${s.first_name || ''} ${s.last_name || ''}`.trim(), s.email, attendedEmails.has(s.email) ? 'Present' : 'Absent']);

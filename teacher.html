@@ -884,12 +884,26 @@
     let currentCode = null;
     let countdownInterval = null;
     let liveUpdateInterval = null;
+    let teacherSubject = 'Lecture';
+
+    async function loadProfile() {
+      try {
+        const response = await fetch('/profile', { credentials: 'same-origin' });
+        if (!response.ok) return;
+        const profile = await response.json();
+        teacherSubject = profile.subject || teacherSubject;
+        document.getElementById('assignedSubject').textContent = teacherSubject;
+      } catch (err) {
+        console.error('Unable to load teacher profile', err);
+      }
+    }
 
     // Session check
-    fetch('/check-session', { credentials: 'same-origin' }).then(res => res.json()).then(data => {
+    fetch('/check-session', { credentials: 'same-origin' }).then(res => res.json()).then(async data => {
       if (!data.loggedIn || data.role !== 'teacher') {
         window.location.href = '/';
       } else {
+        await loadProfile();
         loadStats();
         loadAttendance();
         loadSessions();
@@ -903,7 +917,8 @@
     }
 
     async function generateCode() {
-      const subject = document.getElementById('subjectInput').value.trim();
+      const enteredSubject = document.getElementById('subjectInput').value.trim();
+      const subject = enteredSubject ? `${teacherSubject} - ${enteredSubject}` : teacherSubject;
       const btn = document.getElementById('generateBtn');
       btn.disabled = true;
       btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="animate-spin"></circle></svg> Generating...';
@@ -922,6 +937,9 @@
 
         if (data.code) {
           currentCode = data.code;
+          if (data.subject) {
+            document.getElementById('assignedSubject').textContent = data.subject;
+          }
           showCode(data.code);
           startLiveUpdates();
           loadSessions();
