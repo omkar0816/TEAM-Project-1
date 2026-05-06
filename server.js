@@ -81,14 +81,7 @@ app.post('/signup', async (req, res) => {
   const year = req.body.year ? req.body.year.trim() : '';
   const department = req.body.department ? req.body.department.trim() : '';
   const empId = req.body.empId ? req.body.empId.trim() : '';
-  const teacherSubject = req.body.teacherSubject ? req.body.teacherSubject.trim() : '';
-  const allowedSubjects = [
-    'Engineering Mathematic - 2',
-    'basic electronics engineering',
-    'engineering physics',
-    'programming problem solving',
-    'engineering Graphics'
-  ];
+  const subject = '';
 
   if (!role || !email || !password) {
     return res.status(400).json({ success: false, message: 'Role, email, and password are required' });
@@ -96,12 +89,9 @@ app.post('/signup', async (req, res) => {
   if (!['student', 'teacher'].includes(role)) {
     return res.status(400).json({ success: false, message: 'Invalid role' });
   }
-  if (role === 'teacher' && !allowedSubjects.includes(teacherSubject)) {
-    return res.status(400).json({ success: false, message: 'Teacher subject is required and must be one of the approved subjects.' });
-  }
   try {
     await db.execute('INSERT INTO users (email, password, role, first_name, last_name, prn, year, department, subject, emp_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [email, password, role, firstName, lastName, prn, year, department, teacherSubject, empId]);
+      [email, password, role, firstName, lastName, prn, year, department, subject, empId]);
     res.json({ success: true });
   } catch (err) {
     console.error('Signup error:', err.message);
