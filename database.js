@@ -14,24 +14,25 @@ async function initDB() {
       PRN TEXT PRIMARY KEY,
       NAME_STD TEXT,
       EMAIL TEXT,
-      Roll_No INTEGER UNIQUE NOT NULL
+      Roll_No INTEGER PRIMARY KEY UNIQUE NOT NULL
     )`);
 
     // Users table for students and teachers
     await db.execute(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT NOT NULL, -- 'student' or 'teacher'
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       prn TEXT UNIQUE, -- for students
       roll_no INTEGER, -- for students
+      role TEXT NOT NULL, -- 'student' or 'teacher'
       year TEXT, -- for students
       department TEXT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
       subject TEXT, -- for teachers
       emp_id TEXT, -- for teachers
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (roll_no) REFERENCES personal_info(Roll_No)
     )`);
 
     // Ensure older databases also get a subject column for teachers
@@ -59,7 +60,7 @@ async function initDB() {
       student_id INTEGER NOT NULL,
       qr_id TEXT NOT NULL,
       marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE RESTRICT,
+      FOREIGN KEY (student_id) REFERENCES personal_info(Roll_No) ON DELETE RESTRICT,
       FOREIGN KEY (qr_id) REFERENCES qr_codes(id) ON DELETE RESTRICT,
       UNIQUE(student_id, qr_id)
     )`);
