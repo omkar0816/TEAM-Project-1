@@ -46,8 +46,9 @@ function importStudentsFromCSV(csvFilePath) {
     const defaultPassword = prn; // Using PRN as default password
 
     // Insert student
-    db.run(`INSERT OR IGNORE INTO users (email, password, role, first_name, last_name, prn, year, department)
-            VALUES (?, ?, 'student', ?, ?, ?, ?, ?)`,
+    db.run(`INSERT OR IGNORE INTO users (first_name, last_name,role, prn,email, year, department,password)
+            VALUES (?, ?, 'student', ?, ?, ?, ?,?)`,
+           
       [email, defaultPassword, firstName, lastName, prn, year || 'FE', department || 'Computer Engineering'],
       function(err) {
         if (err) {
