@@ -23,7 +23,6 @@ async function initDB() {
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
       prn TEXT UNIQUE, -- for students
-      roll_no INTEGER, -- for students
       role TEXT NOT NULL, -- 'student' or 'teacher'
       year TEXT, -- for students
       department TEXT,
@@ -32,7 +31,7 @@ async function initDB() {
       subject TEXT, -- for teachers
       emp_id TEXT, -- for teachers
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (roll_no) REFERENCES personal_info(Roll_No)
+     
     )`);
 
     // Ensure older databases also get a subject column for teachers
@@ -58,9 +57,11 @@ async function initDB() {
     await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       student_id INTEGER NOT NULL,
+      Prn_no INTEGER UNIQUE,
       qr_id TEXT NOT NULL,
       marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (student_id) REFERENCES personal_info(Roll_No) ON DELETE RESTRICT,
+      FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE RESTRICT,
+       FOREIGN KEY (Prn_no) REFERENCES users(PRN) ON DELETE RESTRICT,
       FOREIGN KEY (qr_id) REFERENCES qr_codes(id) ON DELETE RESTRICT,
       UNIQUE(student_id, qr_id)
     )`);
