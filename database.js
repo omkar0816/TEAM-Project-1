@@ -25,15 +25,13 @@ async function initDB() {
       role TEXT NOT NULL, -- 'student' or 'teacher'
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
-      PRN TEXT UNIQUE, -- for students, foreign key to personal_info
-      Roll_No INTEGER, -- for students, foreign key to personal_info
+      prn TEXT UNIQUE, -- for students
+      roll_no INTEGER, -- for students
       year TEXT, -- for students
       department TEXT,
       subject TEXT, -- for teachers
       emp_id TEXT, -- for teachers
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (PRN) REFERENCES personal_info(PRN),
-      FOREIGN KEY (Roll_No) REFERENCES personal_info(Roll_No)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
     // Ensure older databases also get a subject column for teachers
@@ -89,6 +87,20 @@ async function initDB() {
         [defaultEmail, hashedPassword, 'Default', 'Teacher', 'T001']
       );
       console.log(`Seeded default teacher account: ${defaultEmail}`);
+    }
+
+    // Migrate any legacy plaintext passwords to bcrypt hashes
+    try {
+      const users = await db.execute('SELECT id, password FROM users');
+      for (const user of users.rows) {
+        const pw = user.password || '';
+        if (pw && !pw.startsWith('$2a$') && !pw.startsWith('$2b$') && !pw.startsWith('$2y$')) {
+          const hash = await bcrypt.hash(pw, 10);
+          await db.execute('UPDATE users SET password = ? WHERE id = ?', [hash, user.id]);
+        }
+      }
+    } catch (migrateErr) {
+      console.error('Password migration error:', migrateErr.message);
     }
 
     console.log('Database initialized successfully.');
