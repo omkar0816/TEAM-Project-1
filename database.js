@@ -7,20 +7,31 @@ const db = createClient({
 // Initialize database tables
 async function initDB() {
   try {
+    // Personal Info table for student details
+    await db.execute(`CREATE TABLE IF NOT EXISTS personal_info (
+      PRN TEXT PRIMARY KEY,
+      NAME_STD TEXT,
+      EMAIL TEXT,
+      Roll_No INTEGER UNIQUE NOT NULL
+    )`);
+
     // Users table for students and teachers
     await db.execute(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prn TEXT UNIQUE, -- for students
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL, -- 'student' or 'teacher'
       first_name TEXT NOT NULL,
       last_name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      department TEXT,
-      role TEXT NOT NULL, -- 'student' or 'teacher'
-      password TEXT NOT NULL,
+      PRN TEXT UNIQUE, -- for students, foreign key to personal_info
+      Roll_No INTEGER, -- for students, foreign key to personal_info
       year TEXT, -- for students
+      department TEXT,
       subject TEXT, -- for teachers
       emp_id TEXT, -- for teachers
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (PRN) REFERENCES personal_info(PRN),
+      FOREIGN KEY (Roll_No) REFERENCES personal_info(Roll_No)
     )`);
 
     // Ensure older databases also get a subject column for teachers
@@ -31,7 +42,7 @@ async function initDB() {
         throw err;
       }
     }
-
+>>>>>>> d8a127a (Add PRN-based student authentication with automatic Roll_No linking to personal_info table)
     // QR codes table
     await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (
       id TEXT PRIMARY KEY,
