@@ -53,16 +53,39 @@ app.get('/', (req, res) => {
 
 // Login
 app.post('/login', async (req, res) => {
-  const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
-  const password = req.body.password ? req.body.password.trim() : '';
-  const prn = req.body.prn ? req.body.prn.trim() : '';
-  
-  try {
-    const result = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
-    const user = result.rows[0];
-    if (!user) {
-      return res.json({ success: false, message: 'Invalid credentials' });
+    const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
+    const password = req.body.password ? req.body.password.trim() : '';
+    const prn = req.body.prn ? req.body.prn.trim() : '';
+
+    try {
+        // 1. First, check if the PRN exists in the personal_info table
+        const prnCheck = await db.execute('SELECT * FROM personal_info WHERE prn = ?', [prn]);
+        
+        if (prnCheck.rows.length === 0) {
+            return res.json({ success: false, message: 'Invalid PRN number. Please enter a registered PRN.' });
+        }
+
+        // 2. Proceed to check if the user exists in the users table
+        const result = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
+        const user = result.rows[0];
+
+        if (!user) {
+            return res.json({ success: false, message: 'Invalid credentials' });
+        }
+
+        // 3. Optional: Verify if the PRN matches the one linked to this specific user
+        if (user.prn !== prn) {
+            return res.json({ success: false, message: 'PRN does not match this user account' });
+        }
+
+        // Continue with password verification and session creation...
+        // ...
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
+});
 
     const isHashedPassword = typeof user.password === 'string' && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$'));
     let passwordMatch = false;
