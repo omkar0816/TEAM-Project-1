@@ -728,10 +728,6 @@
         font-size: 1.5rem !important;
       }
 
-      /* Subject input */
-      .subject-input {
-        margin-bottom: 1rem !important;
-      }
     }
 
     /* Extra small phones (iPhone SE etc.) */
@@ -775,12 +771,7 @@
       <!-- Code Generation -->
       <div class="section code-section">
         <h2>Generate Attendance Code</h2>
-        <div class="subject-input" style="margin-bottom: 1rem;">
-          <input type="text" id="subjectInput" placeholder="Enter subject/lecture name (optional)" 
-                 style="width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.08); color: var(--white); font-size: 16px;" 
-                 maxlength="100">
-        </div>
-        <button class="generate-btn" id="generateBtn" onclick="generateCode()">
+          <button class="generate-btn" id="generateBtn" onclick="generateCode()">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -892,7 +883,6 @@
         if (!response.ok) return;
         const profile = await response.json();
         teacherSubject = profile.subject || teacherSubject;
-        document.getElementById('assignedSubject').textContent = teacherSubject;
       } catch (err) {
         console.error('Unable to load teacher profile', err);
       }
@@ -917,8 +907,7 @@
     }
 
     async function generateCode() {
-      const enteredSubject = document.getElementById('subjectInput').value.trim();
-      const subject = enteredSubject ? `${teacherSubject} - ${enteredSubject}` : teacherSubject;
+      const subject = teacherSubject;
       const btn = document.getElementById('generateBtn');
       btn.disabled = true;
       btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="animate-spin"></circle></svg> Generating...';
@@ -937,9 +926,6 @@
 
         if (data.code) {
           currentCode = data.code;
-          if (data.subject) {
-            document.getElementById('assignedSubject').textContent = data.subject;
-          }
           showCode(data.code);
           startLiveUpdates();
           loadSessions();
