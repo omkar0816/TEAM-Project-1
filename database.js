@@ -42,7 +42,7 @@ async function initDB() {
         throw err;
       }
     }
->>>>>>> d8a127a (Add PRN-based student authentication with automatic Roll_No linking to personal_info table)
+
     // QR codes table
     await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (
       id TEXT PRIMARY KEY,
