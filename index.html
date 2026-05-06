@@ -814,6 +814,7 @@
     if (ok) {
       fetch('/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: pw })
       })
@@ -887,6 +888,7 @@
       }
       fetch('/signup', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })

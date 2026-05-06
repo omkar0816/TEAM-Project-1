@@ -26,7 +26,8 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000  
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
@@ -146,7 +147,7 @@ app.post('/generate-code', async (req, res) => {
   }
 
   const { subject } = req.body;
-  const expiresAt = new Date(Date.now() + 50 * 1000); // 50 seconds
+  const expiresAt = Math.floor(Date.now() / 1000) + 50; // 50 seconds in epoch seconds
   const teacherResult = await db.execute('SELECT subject FROM users WHERE id = ?', [req.session.userId]);
   const teacherInfo = teacherResult.rows[0] || {};
   const sessionSubject = subject || teacherInfo.subject || 'Lecture';
@@ -157,7 +158,7 @@ app.post('/generate-code', async (req, res) => {
 
     const code = Math.floor(10000 + Math.random() * 90000).toString();
     try {
-      await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, sessionSubject, expiresAt.toISOString()]);
+      await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, sessionSubject, expiresAt]);
       res.json({ code, subject: sessionSubject });
     } catch (err) {
       if (err.message && err.message.includes('UNIQUE constraint failed')) {
@@ -178,8 +179,9 @@ app.get('/mark-attendance', async (req, res) => {
     return res.status(400).send('Invalid code');
   }
   try {
+    const now = Math.floor(Date.now() / 1000);
     // Check if code is valid
-    const result = await db.execute('SELECT * FROM qr_codes WHERE id = ? AND expires_at > datetime(\'now\')', [code]);
+    const result = await db.execute('SELECT * FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
     const codeRow = result.rows[0];
     if (!codeRow) {
       return res.send('Code expired or invalid');
@@ -198,7 +200,12 @@ app.get('/mark-attendance', async (req, res) => {
         <button onclick="mark()">Mark Attendance</button>
         <script>
           function mark() {
-            fetch('/mark-attendance-post?code=\${code}', { method: 'POST' })
+            fetch('/mark-attendance-post', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: '${code}' })
+            })
               .then(res => res.text())
               .then(msg => alert(msg));
           }
@@ -219,8 +226,9 @@ app.post('/mark-attendance-post', async (req, res) => {
   }
   try {
     const studentId = req.session.userId;
+    const now = Math.floor(Date.now() / 1000);
     // Validate code exists and is not expired
-    const codeResult = await db.execute('SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > datetime(\'now\')', [code]);
+    const codeResult = await db.execute('SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
     if (!codeResult.rows[0]) {
       return res.send('Code expired or invalid');
     }
@@ -311,7 +319,8 @@ app.get('/live-count', async (req, res) => {
   }
 
   try {
-    const codeResult = await db.execute('SELECT id FROM qr_codes WHERE id = ? AND expires_at > datetime(\'now\')', [code]);
+    const now = Math.floor(Date.now() / 1000);
+    const codeResult = await db.execute('SELECT id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
     const codeRow = codeResult.rows[0];
     if (!codeRow) {
       return res.json({ count: 0, students: [] });
