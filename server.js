@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const bcrypt = require('bcrypt');
 const { db } = require('./database');
 const TursoSessionStore = require('./sessionStore');
 const ExcelJS = require('exceljs');
@@ -57,11 +58,9 @@ app.post('/login', async (req, res) => {
   const prn = req.body.prn ? req.body.prn.trim() : '';
   
   try {
-    // Query user with email and password
-    const result = await db.execute('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
+    const result = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
     const user = result.rows[0];
-    
-    if (user) {
+    if (user && await bcrypt.compare(password, user.password)) {
       // If it's a student, validate PRN against personal_info
       if (user.role === 'student') {
         if (!prn) {
@@ -122,6 +121,7 @@ app.post('/signup', async (req, res) => {
   }
 
   try {
+<<<<<<< HEAD
     // For students, validate PRN exists in personal_info table
     if (role === 'student') {
       if (!prn) {
@@ -139,13 +139,12 @@ app.post('/signup', async (req, res) => {
       
       // Insert with foreign key references to personal_info
       await db.execute('INSERT INTO users (email, password, role, first_name, last_name, PRN, Roll_No, year, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [email, password, role, firstName, lastName, prn, rollNo, year, department]);
+        [email, hashedPassword, role, firstName, lastName, prn, rollNo, year, department]);
     } else {
       // For teachers, no PRN required
       await db.execute('INSERT INTO users (email, password, role, first_name, last_name, emp_id, subject) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [email, password, role, firstName, lastName, empId, subject]);
+        [email, hashedPassword, role, firstName, lastName, empId, subject]);
     }
-    
     res.json({ success: true });
   } catch (err) {
     console.error('Signup error:', err.message);

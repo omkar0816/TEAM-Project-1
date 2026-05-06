@@ -338,6 +338,12 @@
 
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+    @media (max-width: 700px) {
+      .field-row { grid-template-columns: 1fr; }
+      .field { width: 100%; min-width: 0; }
+      .input-wrap { width: 100%; }
+    }
+
     /* password toggle */
     .pw-toggle {
       position: absolute;
@@ -426,6 +432,14 @@
       justify-content: flex-end;
       margin-top: -6px;
       margin-bottom: 1rem;
+    }
+
+    .signup-link {
+      display: flex;
+      justify-content: center;
+      margin-top: 1rem;
+      font-size: 13px;
+      color: var(--muted);
     }
 
     .link-btn {
@@ -616,6 +630,10 @@
             <svg viewBox="0 0 10 10" fill="none"><path d="M2 5h6M6 3l2 2-2 2" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
         </button>
+
+        <div class="signup-link">
+          Don't have an account? <button class="link-btn" onclick="setTab('signup')">Sign up</button>
+        </div>
       </div>
 
       <!-- ── SIGNUP PANEL ── -->
@@ -945,6 +963,12 @@
       .catch(err => showToast('Error: ' + err.message));
     }
   }
+
+
+window.addEventListener('DOMContentLoaded', () => {
+  setRole('student');
+  setTab('login');
+});
 </script>
 </body>
 </html>

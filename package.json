@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
+    "bcrypt": "^6.0.0",
     "body-parser": "^1.20.2",
     "dotenv": "^16.3.1",
     "exceljs": "^4.4.0",

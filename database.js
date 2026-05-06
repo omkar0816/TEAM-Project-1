@@ -1,4 +1,6 @@
 const { createClient } = require('@libsql/client');
+const bcrypt = require('bcrypt');
+
 const db = createClient({
   url: process.env.TURSO_DB_URL || 'file:attendance.db',  // fallback to local SQLite file if env not set
   authToken: process.env.TURSO_AUTH_TOKEN
@@ -81,9 +83,10 @@ async function initDB() {
     if (count === 0) {
       const defaultEmail = process.env.DEFAULT_TEACHER_EMAIL || 'teacher@wadia.ac.in';
       const defaultPassword = process.env.DEFAULT_TEACHER_PASSWORD || 'password123';
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
       await db.execute(
         `INSERT OR IGNORE INTO users (email, password, role, first_name, last_name, emp_id) VALUES (?, ?, 'teacher', ?, ?, ?)`,
-        [defaultEmail, defaultPassword, 'Default', 'Teacher', 'T001']
+        [defaultEmail, hashedPassword, 'Default', 'Teacher', 'T001']
       );
       console.log(`Seeded default teacher account: ${defaultEmail}`);
     }
