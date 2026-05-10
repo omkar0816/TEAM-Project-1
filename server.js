@@ -663,10 +663,6 @@ app.get('/teacher-analytics', async (req, res) => {
     res.status(500).json({ error: 'Failed to load analytics' });
   }
 });
-    console.error('Teacher stats error:', err);
-    res.status(500).json({ error: 'Database error' });
-  
-;
 
 // Get attendance for teacher dashboard
 app.get('/attendance', async (req, res) => {
