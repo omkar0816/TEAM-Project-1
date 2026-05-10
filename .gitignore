@@ -4,3 +4,20 @@ node_modules
 .DS_Store
 sessions/
 .env
+.env.local
+
+# Sensitive files - session cookies should NEVER be committed
+*cookies.txt
+student_cookies.txt
+teacher_cookies.txt
+cookies.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+

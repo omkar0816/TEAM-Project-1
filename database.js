@@ -64,6 +64,13 @@ async function initDB() {
       UNIQUE(student_id, qr_id)
     )`);
 
+    // Create indexes for performance optimization
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_qr_id ON attendance(qr_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON attendance(student_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_qr_codes_teacher_id ON qr_codes(teacher_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`);
+
     // Assignments table
     await db.execute(`CREATE TABLE IF NOT EXISTS assignments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

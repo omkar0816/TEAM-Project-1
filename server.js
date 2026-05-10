@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
+const rateLimit = require('express-rate-limit');
 const { db } = require('./database');
 const TursoSessionStore = require('./sessionStore');
 const ExcelJS = require('exceljs');
@@ -13,10 +14,9 @@ const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// If running behind a proxy (common in cloud deployments), trust the first proxy nigga
+// If running behind a proxy (common in cloud deployments),
 app.set('trust proxy', 1);
 
-// bich ka mamla
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
@@ -35,6 +35,60 @@ app.use(session({
 
 app.use(express.static(path.join(__dirname)));
 
+// Rate limiting middleware
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per IP
+  message: { success: false, message: 'Too many login attempts. Please try again later.' },
+  standardHeaders: false,
+  legacyHeaders: false,
+});
+
+const attendanceLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 attempts per minute per session
+  keyGenerator: (req) => req.session.userId || req.ip,
+  message: { success: false, message: 'Too many attendance attempts. Please try again later.' },
+  standardHeaders: false,
+  legacyHeaders: false,
+});
+
+// Input validation helper - sanitize and validate common inputs
+function validateInput(input, type = 'text', maxLength = 255) {
+  if (!input) return '';
+  
+  const str = String(input).trim();
+  
+  if (str.length > maxLength) {
+    throw new Error(`Input too long (max ${maxLength} characters)`);
+  }
+
+  switch (type) {
+    case 'email':
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str)) {
+        throw new Error('Invalid email format');
+      }
+      return str.toLowerCase();
+    case 'prn':
+      if (!/^\d{10,15}$/.test(str) && !/^[A-Z0-9]{8,15}$/.test(str)) {
+        throw new Error('Invalid PRN format');
+      }
+      return str;
+    case 'number-code':
+      if (!/^\d{5}$/.test(str)) {
+        throw new Error('Invalid code format');
+      }
+      return str;
+    case 'username':
+      if (!/^[a-zA-Z0-9_\-\s]{2,50}$/.test(str)) {
+        throw new Error('Invalid name format');
+      }
+      return str;
+    default:
+      return str;
+  }
+}
+
 // Routes
 
 // login page
@@ -52,12 +106,16 @@ app.get('/', (req, res) => {
 });
 
 // Login
-app.post('/login', async (req, res) => {
-  const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
-  const password = req.body.password ? req.body.password.trim() : '';
-  const prn = req.body.prn ? req.body.prn.trim() : '';
-  
+app.post('/login', loginLimiter, async (req, res) => {
   try {
+    const email = validateInput(req.body.email, 'email', 100);
+    const password = String(req.body.password || '').trim();
+    const prn = req.body.prn ? validateInput(req.body.prn, 'prn') : '';
+    
+    if (!email || !password || password.length < 6) {
+      return res.json({ success: false, message: 'Invalid credentials' });
+    }
+    
     const result = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
     const user = result.rows[0];
     if (!user) {
@@ -97,8 +155,8 @@ app.post('/login', async (req, res) => {
     req.session.role = user.role;
     res.json({ success: true, role: user.role });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Database error' });
+    console.error('Login error:', err.message);
+    res.status(400).json({ success: false, message: 'Invalid request' });
   }
 });
 
@@ -264,24 +322,27 @@ app.get('/mark-attendance', async (req, res) => {
 });
 
 // POST version for AJAX
-app.post('/mark-attendance-post', async (req, res) => {
-  const { code } = req.body;
+app.post('/mark-attendance-post', attendanceLimiter, async (req, res) => {
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).send('Unauthorized');
   }
   try {
+    const code = validateInput(req.body.code, 'number-code');
     const studentId = req.session.userId;
     const now = Math.floor(Date.now() / 1000);
+    
     // Validate code exists and is not expired
     const codeResult = await db.execute('SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
     if (!codeResult.rows[0]) {
       return res.send('Code expired or invalid');
     }
+    
     // Validate student exists and is not already marked for this code
     const studentResult = await db.execute('SELECT id FROM users WHERE id = ? AND role = \'student\'', [studentId]);
     if (!studentResult.rows[0]) {
       return res.status(403).send('Unauthorized or student not found');
     }
+    
     // Insert attendance with proper error handling
     try {
       await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [studentId, code]);
@@ -293,8 +354,8 @@ app.post('/mark-attendance-post', async (req, res) => {
       throw insertErr;
     }
   } catch (err) {
-    console.error('Mark attendance post error:', err);
-    res.status(500).send('Error: ' + (err.message || 'unknown'));
+    console.error('Mark attendance post error:', err.message);
+    res.status(400).send('Invalid code format or error: ' + err.message);
   }
 });
 
@@ -482,21 +543,28 @@ app.get('/my-attendance', async (req, res) => {
   }
 });
 
-// Student session history and attendance details
+// Student session history and attendance details - ONLY show sessions from classes the student is enrolled in
 app.get('/my-sessions', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   try {
+    // SECURITY FIX: Only show sessions from classes where the student has attended at least one lecture
+    // Without a proper class enrollment system, this prevents exposing all college schedules
     const result = await db.execute(`
-      SELECT q.id as code, q.subject, q.created_at, q.expires_at,
+      SELECT DISTINCT q.id as code, q.subject, q.created_at, q.expires_at,
              CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as present,
              u.first_name as teacher_fname, u.last_name as teacher_lname
       FROM qr_codes q
+      INNER JOIN users u ON q.teacher_id = u.id
       LEFT JOIN attendance a ON q.id = a.qr_id AND a.student_id = ?
-      LEFT JOIN users u ON q.teacher_id = u.id
+      WHERE q.teacher_id IN (
+        SELECT DISTINCT q2.teacher_id FROM qr_codes q2
+        INNER JOIN attendance a2 ON q2.id = a2.qr_id
+        WHERE a2.student_id = ?
+      )
       ORDER BY q.created_at DESC
-    `, [req.session.userId]);
+    `, [req.session.userId, req.session.userId]);
     res.json(result.rows);
   } catch (err) {
     console.error('My sessions error:', err);

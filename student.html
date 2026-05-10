@@ -2,9 +2,347 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Student Dashboard - Wadia Attendance</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Student Attendance - Wadia College</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      font-family: 'DM Sans', sans-serif;
+    }
+    
+    .serif {
+      font-family: 'DM Serif Display', serif;
+    }
+
+    html, body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0B1F3A 0%, #122844 100%);
+      color: #FFFFFF;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 20% 80%, rgba(30, 111, 217, 0.08) 0%, transparent 70%),
+                  radial-gradient(ellipse 50% 40% at 80% 20%, rgba(232, 160, 32, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn-primary {
+      @apply px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all active:scale-95;
+    }
+
+    .btn-secondary {
+      @apply px-3 py-2 bg-white/10 border border-white/20 hover:bg-white/15 text-white rounded-lg text-sm transition-all;
+    }
+
+    .card {
+      @apply bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl p-4 sm:p-6;
+    }
+
+    .input-field {
+      @apply w-full px-4 py-3 bg-white/8 border border-white/15 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:bg-white/10 transition-all text-base;
+    }
+
+    input::placeholder {
+      color: rgba(138, 155, 181, 0.7);
+    }
+
+    .stat-value {
+      @apply text-3xl sm:text-4xl font-bold text-yellow-400;
+    }
+
+    .stat-label {
+      @apply text-xs sm:text-sm text-gray-400 mt-2;
+    }
+
+    /* Prevent iOS zoom on input focus */
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+
+    @media (max-width: 500px) {
+      body {
+        padding-top: 0;
+      }
+      .card {
+        @apply p-3;
+      }
+      .serif {
+        font-size: 1.25rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container-content min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="border-b border-white/10 p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-500 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M13 4L2 10l11 6 11-6-11-6z" fill="#0B1F3A" stroke="#0B1F3A" stroke-linejoin="round"/>
+              <path d="M6 13v5c0 2.5 3 4 7 4s7-1.5 7-4v-5" stroke="#0B1F3A" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-bold text-yellow-400 uppercase tracking-wide">Wadia</div>
+            <div class="text-sm sm:text-base font-semibold truncate">Attendance</div>
+          </div>
+        </div>
+        <button onclick="logout()" class="btn-secondary text-xs sm:text-sm">Logout</button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6">
+      
+      <!-- Mark Attendance Section -->
+      <section class="card">
+        <h2 class="serif text-lg sm:text-xl text-yellow-400 mb-3 sm:mb-4">Mark Attendance</h2>
+        <p class="text-xs sm:text-sm text-gray-400 mb-4">Enter the 5-digit code from your teacher:</p>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input 
+            type="text" 
+            id="codeInput" 
+            class="input-field flex-1"
+            placeholder="00000"
+            maxlength="5"
+            pattern="[0-9]{5}"
+            inputmode="numeric"
+          >
+          <button onclick="markAttendance()" class="btn-primary w-full sm:w-auto whitespace-nowrap text-sm sm:text-base">
+            Mark
+          </button>
+        </div>
+      </section>
+
+      <!-- Stats Grid -->
+      <section class="grid grid-cols-2 gap-3 sm:gap-4">
+        <div class="card text-center">
+          <div class="stat-value" id="monthlyPct">--%</div>
+          <div class="stat-label">Monthly</div>
+        </div>
+        <div class="card text-center">
+          <div class="stat-value" id="livePct">--%</div>
+          <div class="stat-label">Overall</div>
+        </div>
+      </section>
+
+      <!-- Attendance Detail -->
+      <div id="monthlyDetail" class="text-xs sm:text-sm text-gray-400 text-center">Loading attendance details...</div>
+
+      <!-- Recent Attendance -->
+      <section class="card">
+        <h2 class="serif text-lg sm:text-xl text-yellow-400 mb-3 sm:mb-4">Recent Attendance</h2>
+        <div id="myAttendance" class="space-y-2 sm:space-y-3">
+          <p class="text-xs sm:text-sm text-gray-400">Loading...</p>
+        </div>
+      </section>
+
+      <!-- Session History -->
+      <section class="card">
+        <h2 class="serif text-lg sm:text-xl text-yellow-400 mb-3 sm:mb-4">Session History</h2>
+        <div id="sessionHistory" class="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6">
+          <p class="text-xs sm:text-sm text-gray-400">Loading session history...</p>
+        </div>
+      </section>
+
+      <!-- Assignments -->
+      <section class="card pb-8 sm:pb-10">
+        <h2 class="serif text-lg sm:text-xl text-yellow-400 mb-3 sm:mb-4">Assignments</h2>
+        <div id="assignmentList" class="space-y-2 sm:space-y-3">
+          <p class="text-xs sm:text-sm text-gray-400">Loading assignments...</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // Check session on load
+    fetch('/check-session').then(res => res.json()).then(data => {
+      if (!data.loggedIn || data.role !== 'student') {
+        window.location.href = '/';
+      }
+    }).catch(() => window.location.href = '/');
+
+    async function logout() {
+      try {
+        await fetch('/logout', { method: 'POST' });
+      } catch (e) {}
+      window.location.href = '/';
+    }
+
+    async function markAttendance() {
+      const code = document.getElementById('codeInput').value.trim();
+      
+      if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
+        alert('Please enter a valid 5-digit code');
+        return;
+      }
+
+      try {
+        const response = await fetch('/mark-attendance-post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+
+        const msg = await response.text();
+        alert(msg);
+
+        if (response.ok) {
+          document.getElementById('codeInput').value = '';
+          loadMyAttendance();
+          loadMyStats();
+          loadSessionHistory();
+        }
+      } catch (error) {
+        alert('Error marking attendance. Please try again.');
+        console.error('Mark attendance error:', error);
+      }
+    }
+
+    async function loadMyAttendance() {
+      try {
+        const response = await fetch('/my-attendance');
+        if (!response.ok) throw new Error('Failed to load');
+
+        const data = await response.json();
+
+        if (data.length === 0) {
+          document.getElementById('myAttendance').innerHTML = '<p class="text-xs sm:text-sm text-gray-400">No attendance records yet.</p>';
+          return;
+        }
+
+        const list = data.map(a => `
+          <div class="flex items-start justify-between gap-2 p-2 sm:p-3 bg-white/5 rounded-lg">
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-yellow-400 text-sm truncate">${a.subject || 'Lecture'}</div>
+              <div class="text-xs text-gray-400 mt-1">${new Date(a.marked_at).toLocaleString()}</div>
+            </div>
+            <div class="text-xs font-semibold text-green-400 flex-shrink-0">✓</div>
+          </div>
+        `).join('');
+        document.getElementById('myAttendance').innerHTML = list;
+      } catch (error) {
+        document.getElementById('myAttendance').innerHTML = '<p class="text-xs sm:text-sm text-red-400">Error loading attendance.</p>';
+      }
+    }
+
+    async function loadMyStats() {
+      try {
+        const response = await fetch('/my-stats');
+        if (!response.ok) throw new Error('Failed to load stats');
+
+        const data = await response.json();
+        const monthlyNum = Number(data.monthly);
+        const liveNum = Number(data.live);
+
+        document.getElementById('monthlyPct').textContent = `${data.monthly}%`;
+        document.getElementById('livePct').textContent = `${data.live}%`;
+
+        document.getElementById('monthlyPct').style.color = monthlyNum >= 75 ? '#4CAF50' : '#E05555';
+        document.getElementById('livePct').style.color = liveNum >= 75 ? '#4CAF50' : '#E05555';
+
+        document.getElementById('monthlyDetail').textContent = `${data.monthlyAttended} of ${data.monthlyTotal} lectures this month`;
+      } catch (error) {
+        document.getElementById('monthlyDetail').textContent = 'Could not load stats.';
+      }
+    }
+
+    async function loadSessionHistory() {
+      try {
+        const response = await fetch('/my-sessions');
+        if (!response.ok) throw new Error('Failed to load');
+
+        const data = await response.json();
+
+        if (data.length === 0) {
+          document.getElementById('sessionHistory').innerHTML = '<p class="text-xs sm:text-sm text-gray-400">No sessions yet.</p>';
+          return;
+        }
+
+        const rows = data.map(row => {
+          const date = new Date(row.created_at);
+          const status = row.present ? '✓ Present' : '✗ Absent';
+          const statusColor = row.present ? 'text-green-400' : 'text-red-400';
+          return `
+            <div class="border-b border-white/10 pb-3 mb-3 last:border-b-0 last:pb-0 last:mb-0 text-xs sm:text-sm">
+              <div class="font-semibold text-yellow-400">${row.subject || 'Lecture'}</div>
+              <div class="text-gray-400 mt-1">${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
+              <div class="${statusColor} font-semibold mt-1">${status}</div>
+              <div class="text-gray-500 text-xs mt-1">${row.teacher_fname ? `Teacher: ${row.teacher_fname} ${row.teacher_lname}` : 'Teacher: TBD'}</div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('sessionHistory').innerHTML = `<div class="space-y-2">${rows}</div>`;
+      } catch (error) {
+        document.getElementById('sessionHistory').innerHTML = '<p class="text-xs sm:text-sm text-red-400">Error loading session history.</p>';
+      }
+    }
+
+    async function loadAssignments() {
+      try {
+        const response = await fetch('/assignments');
+        if (!response.ok) throw new Error('Failed to load');
+
+        const data = await response.json();
+
+        if (data.length === 0) {
+          document.getElementById('assignmentList').innerHTML = '<p class="text-xs sm:text-sm text-gray-400">No assignments yet.</p>';
+          return;
+        }
+
+        const html = data.map(item => `
+          <div class="p-3 sm:p-4 bg-white/5 rounded-lg border border-white/10">
+            <div class="font-semibold text-yellow-400 text-sm">${item.title}</div>
+            <div class="text-xs sm:text-sm text-gray-300 mt-2">${item.description || 'No description'}</div>
+            <div class="text-xs text-gray-500 mt-3">Due: ${item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No deadline'}</div>
+          </div>
+        `).join('');
+        document.getElementById('assignmentList').innerHTML = html;
+      } catch (error) {
+        document.getElementById('assignmentList').innerHTML = '<p class="text-xs sm:text-sm text-red-400">Error loading assignments.</p>';
+      }
+    }
+
+    // Load all data on page load
+    loadMyAttendance();
+    loadMyStats();
+    loadSessionHistory();
+    loadAssignments();
+  </script>
+</body>
+</html>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
