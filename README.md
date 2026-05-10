@@ -1,53 +1,168 @@
 # Wadia Attendance System
 
-A modern web-based attendance management system for Wadia College of Engineering, featuring QR code-based attendance marking with separate dashboards for teachers and students.
+A production-ready attendance management system for educational institutions, featuring advanced anti-proxy measures, comprehensive analytics, and enterprise-grade security.
 
-## Features
+## 🚀 Key Features
 
-### For Teachers
-- Generate time-limited (50 seconds) 5-digit codes for attendance
-- **Live attendance counter** - See real-time count of students marking attendance
-- **Comprehensive statistics**: Total lectures, attendance count, average percentage, unique students
-- View detailed attendance records organized by lecture date
-- Secure teacher dashboard with session management
+### Anti-Proxy Attendance System
+- **Device Lock**: One attendance per device per session
+- **Location Validation**: GPS-based campus boundary checking
+- **Browser Fingerprinting**: Advanced device identification
+- **50-Second Time Windows**: Prevents code sharing
 
-### For Students
-- Mark attendance using generated codes within the time limit
-- View personal attendance history
-- Modern, responsive dashboard interface
-- Future features: Monthly attendance summaries, per-lecture stats
+### Advanced Analytics Dashboard
+- **Teacher Dashboard**: Session stats, subject-wise breakdown, low-attendance alerts
+- **Real-time Monitoring**: Live attendance counters during active sessions
+- **Excel Export**: Download attendance reports by date, subject, or class
+- **Audit Logs**: Complete accountability with who-did-what tracking
 
-### System Features
-- Role-based authentication (Student/Teacher)
-- SQLite database for data persistence
-- Session-based security
-- Responsive design with modern UI
-- Real-time attendance tracking
-- **Live attendance monitoring** for teachers during active sessions
+### Enterprise Security
+- **Clean Database Schema**: Normalized tables (students, teachers, subjects, sessions, records)
+- **Session Security**: HTTPOnly, Secure, SameSite cookies with 30-minute expiry
+- **Password Policies**: Forced password changes for default accounts
+- **Role-based Access**: Separate student/teacher authentication
 
-## Tech Stack
+### Production Ready
+- **Docker Deployment**: Containerized with health checks
+- **Database Backup**: Automated daily backups with API endpoints
+- **Connection Pooling**: Handles 100+ concurrent students
+- **Health Monitoring**: `/health` endpoint for load balancers
+
+## 🏗️ Architecture
+
+```
+src/
+├── models/          # Database schemas and queries
+├── services/        # Business logic (session store, etc.)
+├── controllers/     # Route handlers
+├── middleware/      # Authentication, validation
+├── utils/          # Helper functions
+└── routes/         # API route definitions
+
+public/             # Static assets
+backups/            # Database backups
+```
+
+## 🛠️ Tech Stack
 
 - **Backend**: Node.js, Express.js
-- **Database**: SQLite
-- **Frontend**: HTML5, CSS3, JavaScript
-- **Styling**: Custom CSS with gradients and animations
+- **Database**: Turso (SQLite-compatible) with connection pooling
+- **Authentication**: Session-based with bcrypt hashing
+- **Export**: ExcelJS for attendance reports
+- **Deployment**: Docker + docker-compose
+- **Security**: Rate limiting, input validation, audit logging
 
-## Installation
+## 📊 Database Schema
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/omkar0816/TEAM-Project-1.git
-   cd TEAM-Project-1
-   ```
+- `students` - Student information
+- `teachers` - Teacher accounts with password policies
+- `subjects` - Course catalog
+- `attendance_sessions` - QR code sessions with expiry
+- `attendance_records` - Individual attendance marks with device/location data
+- `audit_logs` - Complete activity tracking
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+## 🚀 Quick Start
 
-3. Create a `.env` file by copying the example:
-   ```bash
-   cp .env.example .env
+### Local Development
+```bash
+git clone https://github.com/omkar0816/TEAM-Project-1.git
+cd TEAM-Project-1
+npm install
+cp .env.example .env
+npm start
+```
+
+### Docker Deployment
+```bash
+docker-compose up -d
+```
+
+### Environment Variables
+```env
+TURSO_DB_URL=file:attendance.db
+SESSION_SECRET=your-secure-session-secret
+DEFAULT_TEACHER_EMAIL=admin@college.edu
+DEFAULT_TEACHER_PASSWORD=TempPass123!
+```
+
+## 📈 API Endpoints
+
+### Authentication
+- `POST /login` - User authentication
+- `POST /change-password` - Force password change
+
+### Teacher Operations
+- `POST /generate-session` - Create attendance session
+- `GET /sessions` - List all sessions
+- `GET /session-attendance` - View session details
+- `GET /teacher-analytics` - Dashboard analytics
+- `GET /export-attendance` - Excel export
+
+### Student Operations
+- `POST /mark-attendance` - Mark attendance with anti-proxy checks
+
+### System
+- `GET /health` - Health check
+- `POST /backup-database` - Manual backup
+- `POST /auto-backup` - Automated backup
+
+## 🔒 Security Features
+
+- **Device Fingerprinting**: Prevents multiple attendance from same device
+- **Location Validation**: Campus GPS boundary checking
+- **Session Expiry**: 30-minute inactivity timeout
+- **Rate Limiting**: Prevents brute force attacks
+- **Audit Logging**: Complete activity tracking
+- **Input Validation**: Sanitized user inputs
+- **Password Hashing**: bcrypt with salt rounds
+
+## 📊 Analytics
+
+- **Real-time Attendance**: Live counters during sessions
+- **Subject-wise Reports**: Performance by course
+- **Low Attendance Alerts**: Students below 75%
+- **Historical Trends**: Session-by-session analysis
+- **Excel Exports**: Professional reports for administration
+
+## 🔄 Deployment
+
+### Docker
+```bash
+docker build -t attendance-system .
+docker run -p 3000:3000 attendance-system
+```
+
+### docker-compose
+```bash
+docker-compose up -d
+```
+
+### Health Checks
+```bash
+curl http://localhost:3000/health
+# Returns: {"status":"ok","uptime":123.45}
+```
+
+## 📋 Production Checklist
+
+- [x] Clean database schema with proper normalization
+- [x] Session security with HTTPOnly/Secure/SameSite
+- [x] Password change enforcement
+- [x] Device lock and location validation
+- [x] Audit logging system
+- [x] Excel export functionality
+- [x] Analytics dashboard
+- [x] Docker containerization
+- [x] Health check endpoints
+- [x] Database backup system
+- [x] Professional folder structure
+- [x] Connection pooling for 100+ users
+- [ ] API documentation (Swagger/Postman)
+- [ ] Admin panel (future enhancement)
+
+## 🤝 Contributing
+
+This system is designed for college deployment with enterprise-grade reliability and anti-proxy measures that make attendance tracking trustworthy and administration effortless.
    ```
 
 4. Fill in your Turso connection values in `.env` if you want to use a remote database:

@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  attendance-app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - TURSO_DB_URL=${TURSO_DB_URL}
+      - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DEFAULT_TEACHER_EMAIL=${DEFAULT_TEACHER_EMAIL}
+      - DEFAULT_TEACHER_PASSWORD=${DEFAULT_TEACHER_PASSWORD}
+      - BACKUP_API_KEY=${BACKUP_API_KEY}
+    volumes:
+      - ./backups:/app/backups
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
