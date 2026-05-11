@@ -802,6 +802,17 @@
     
     // Show/hide PRN field in login based on role
     document.getElementById('fieldLoginPrn').style.display = role === 'student' ? '' : 'none';
+    
+    // Update password field based on role
+    const pwInput = document.getElementById('loginPw');
+    const pwLabel = document.getElementById('fieldLoginPw').querySelector('label');
+    if (role === 'student') {
+      pwInput.placeholder = 'Enter your PRN as password';
+      pwLabel.textContent = 'Password (your PRN)';
+    } else {
+      pwInput.placeholder = 'Enter your password';
+      pwLabel.textContent = 'Password';
+    }
   }
 
   function setTab(tab) {

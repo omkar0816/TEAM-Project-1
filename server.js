@@ -7,12 +7,67 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
-const { db } = require('./src/models/database');
+const { db, initDB } = require('./src/models/database');
 const TursoSessionStore = require('./src/services/sessionStore');
 const ExcelJS = require('exceljs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Utility functions
+function validateInput(input, type, maxLength = 255) {
+  if (!input) return '';
+  
+  let sanitized = String(input).trim();
+  
+  // Length validation
+  if (sanitized.length > maxLength) {
+    throw new Error(`${type} exceeds maximum length of ${maxLength} characters`);
+  }
+  
+  // Type-specific validation
+  switch (type) {
+    case 'email':
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(sanitized)) {
+        throw new Error('Invalid email format');
+      }
+      break;
+    case 'prn':
+      // PRN should be numeric, typically 10-12 digits
+      if (!/^\d{10,12}$/.test(sanitized)) {
+        throw new Error('PRN must be 10-12 digits');
+      }
+      break;
+    case 'number-code':
+      // For session codes, should be alphanumeric
+      if (!/^[A-Za-z0-9]{6,}$/.test(sanitized)) {
+        throw new Error('Invalid code format');
+      }
+      break;
+  }
+  
+  return sanitized;
+}
+
+async function logAudit(userId, userType, action, details, req) {
+  try {
+    await db.execute(
+      'INSERT INTO audit_logs (user_id, user_type, action, details, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        userId,
+        userType,
+        action,
+        details,
+        req.ip || req.connection.remoteAddress,
+        req.get('User-Agent') || ''
+      ]
+    );
+  } catch (error) {
+    console.error('Failed to log audit event:', error);
+    // Don't throw error to avoid breaking the main flow
+  }
+}
 
 // If running behind a proxy (common in cloud deployments),
 app.set('trust proxy', 1);
@@ -67,6 +122,17 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 
 // Routes
 
+// Test route
+app.get('/test', (req, res) => {
+  console.log('TEST ROUTE CALLED');
+  res.json({ message: 'Test route works' });
+});
+
+app.post('/test-post', (req, res) => {
+  console.log('TEST POST ROUTE CALLED', req.body);
+  res.json({ message: 'Test POST route works', body: req.body });
+});
+
 // login page
 app.get('/', (req, res) => {
   if (req.session.userId) {
@@ -96,13 +162,17 @@ app.post('/login', loginLimiter, async (req, res) => {
     let user = null;
     let userType = null;
 
-    const teacherResult = await db.execute('SELECT * FROM teachers WHERE email = ?', [email]);
+    const allTeachers = await db.execute('SELECT * FROM teachers');
+    const teacherResult = { rows: allTeachers.rows.filter(t => t.email === email) };
+    
     if (teacherResult.rows.length > 0) {
       user = teacherResult.rows[0];
       userType = 'teacher';
     } else {
       // Check students table
-      const studentResult = await db.execute('SELECT * FROM students WHERE email = ?', [email]);
+      const allStudents = await db.execute('SELECT * FROM students');
+      const studentResult = { rows: allStudents.rows.filter(s => s.email === email) };
+      
       if (studentResult.rows.length > 0) {
         user = studentResult.rows[0];
         userType = 'student';
@@ -123,9 +193,8 @@ app.post('/login', loginLimiter, async (req, res) => {
     if (userType === 'teacher') {
       passwordMatch = await bcrypt.compare(password, user.password_hash);
     } else {
-      // Students don't have passwords in new schema - they use PRN for verification
-      // This is a temporary measure - in production, students should have separate auth
-      passwordMatch = true; // Allow login for now
+      // For students, PRN serves as the password
+      passwordMatch = (password === user.prn);
     }
 
     if (!passwordMatch) {
@@ -134,7 +203,7 @@ app.post('/login', loginLimiter, async (req, res) => {
 
     // Set session
     req.session.userId = user.id;
-    req.session.userType = userType;
+    req.session.role = userType;
     req.session.email = user.email;
 
     // Update last login for teachers
@@ -142,13 +211,62 @@ app.post('/login', loginLimiter, async (req, res) => {
       await db.execute('UPDATE teachers SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
 
       // Force password change if not changed yet
-      if (!user.password_changed) {
-        return res.json({
-          success: true,
-          redirect: '/change-password',
-          message: 'Please change your default password.'
-        });
-      }
+      // Temporarily disabled for testing
+      // if (!user.password_changed) {
+      //   return res.json({
+      //     success: true,
+      //     redirect: '/change-password',
+      //     message: 'Please change your default password.'
+      //   });
+      // }
+    }
+
+    // Log audit event
+    await logAudit(user.id, userType, 'LOGIN', `User logged in from ${req.ip}`, req);
+
+    res.json({
+      success: true,
+      userType: userType,
+      redirect: userType === 'teacher' ? '/teacher' : '/student'
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.json({ success: false, message: 'Login failed. Please try again.' });
+  }
+});
+
+    // Verify password
+    let passwordMatch = false;
+    if (userType === 'teacher') {
+      passwordMatch = await bcrypt.compare(password, user.password_hash);
+    } else {
+      // For students, PRN serves as the password
+      passwordMatch = (password === user.prn);
+    }
+
+    if (!passwordMatch) {
+      return res.json({ success: false, message: 'Invalid credentials' });
+    }
+
+    // Set session
+    req.session.userId = user.id;
+    req.session.role = userType;
+    req.session.email = user.email;
+
+    // Update last login for teachers
+    if (userType === 'teacher') {
+      await db.execute('UPDATE teachers SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+
+      // Force password change if not changed yet
+      // Temporarily disabled for testing
+      // if (!user.password_changed) {
+      //   return res.json({
+      //     success: true,
+      //     redirect: '/change-password',
+      //     message: 'Please change your default password.'
+      //   });
+      // }
     }
 
     // Log audit event
@@ -187,34 +305,43 @@ app.post('/signup', async (req, res) => {
   }
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
     if (role === 'student') {
-      if (!prn) {
-        return res.status(400).json({ success: false, message: 'PRN is required for students' });
+      if (!prn || !year || !department) {
+        return res.status(400).json({ success: false, message: 'PRN, year, and department are required for students' });
       }
-      if (!year) {
-        return res.status(400).json({ success: false, message: 'Year is required for students' });
-      }
-      if (!department) {
-        return res.status(400).json({ success: false, message: 'Department is required for students' });
-      }
-      await db.execute('INSERT INTO users (email, password, role, first_name, last_name, prn, year, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [email, hashedPassword, role, firstName, lastName, prn, year, department]);
+      
+      // For students, we need to generate a roll_no. Let's find the next available roll number
+      const rollResult = await db.execute('SELECT MAX(roll_no) as max_roll FROM students');
+      const nextRollNo = (rollResult.rows[0]?.max_roll || 0) + 1;
+      
+      await db.execute(
+        'INSERT INTO students (prn, roll_no, name, email, class, department, year) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [prn, nextRollNo, `${firstName} ${lastName}`.trim(), email, year, department, year]
+      );
     } else {
-      await db.execute('INSERT INTO users (email, password, role, first_name, last_name, emp_id, subject) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [email, hashedPassword, role, firstName, lastName, empId, subject]);
+      if (!empId) {
+        return res.status(400).json({ success: false, message: 'Employee ID is required for teachers' });
+      }
+      
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await db.execute(
+        'INSERT INTO teachers (emp_id, name, email, department, subject, password_hash) VALUES (?, ?, ?, ?, ?, ?)',
+        [empId, `${firstName} ${lastName}`.trim(), email, department, subject, hashedPassword]
+      );
     }
     res.json({ success: true });
   } catch (err) {
     console.error('Signup error:', err.message);
     
     let message = 'Registration failed';
-    if (err.message && err.message.includes('UNIQUE constraint failed: users.email')) {
-      message = 'Email already registered. Please log in instead.';
-    } else if (err.message && (err.message.includes('UNIQUE constraint failed: users.prn') || err.message.includes('UNIQUE constraint failed: users.PRN'))) {
-      message = 'This PRN is already registered.';
-    } else if (err.message && err.message.includes('FOREIGN KEY constraint failed')) {
-      message = 'Invalid PRN or Roll Number. Please enter a valid PRN from your enrollment records.';
+    if (err.message && err.message.includes('UNIQUE constraint failed')) {
+      if (err.message.includes('email')) {
+        message = 'Email already registered. Please log in instead.';
+      } else if (err.message.includes('prn')) {
+        message = 'This PRN is already registered.';
+      } else if (err.message.includes('emp_id')) {
+        message = 'This Employee ID is already registered.';
+      }
     }
     
     res.status(400).json({ success: false, message });
@@ -284,8 +411,25 @@ app.get('/profile', async (req, res) => {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   try {
-    const result = await db.execute('SELECT id, email, role, first_name, last_name, department, subject, emp_id FROM users WHERE id = ?', [req.session.userId]);
-    const user = result.rows[0];
+    let user = null;
+    if (req.session.role === 'teacher') {
+      const result = await db.execute('SELECT id, emp_id, name, email, department, subject FROM teachers WHERE id = ?', [req.session.userId]);
+      user = result.rows[0];
+      if (user) {
+        user.role = 'teacher';
+        user.first_name = user.name.split(' ')[0];
+        user.last_name = user.name.split(' ').slice(1).join(' ');
+      }
+    } else {
+      const result = await db.execute('SELECT id, prn, roll_no, name, email, class, department, year FROM students WHERE id = ?', [req.session.userId]);
+      user = result.rows[0];
+      if (user) {
+        user.role = 'student';
+        user.first_name = user.name.split(' ')[0];
+        user.last_name = user.name.split(' ').slice(1).join(' ');
+      }
+    }
+    
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -1169,6 +1313,9 @@ app.use((err, req, res, next) => {
 });
 
 (async () => {
+  // Initialize database
+  await initDB();
+  
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });

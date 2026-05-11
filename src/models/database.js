@@ -163,8 +163,8 @@ async function initDB() {
   }
 }
 
-(async () => {
-  await initDB();
-})().catch(console.error);
+// (async () => {
+//   await initDB();
+// })().catch(console.error);
 
 module.exports = { db, initDB };
