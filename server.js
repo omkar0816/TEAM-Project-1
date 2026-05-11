@@ -236,54 +236,6 @@ app.post('/login', loginLimiter, async (req, res) => {
   }
 });
 
-    // Verify password
-    let passwordMatch = false;
-    if (userType === 'teacher') {
-      passwordMatch = await bcrypt.compare(password, user.password_hash);
-    } else {
-      // For students, PRN serves as the password
-      passwordMatch = (password === user.prn);
-    }
-
-    if (!passwordMatch) {
-      return res.json({ success: false, message: 'Invalid credentials' });
-    }
-
-    // Set session
-    req.session.userId = user.id;
-    req.session.role = userType;
-    req.session.email = user.email;
-
-    // Update last login for teachers
-    if (userType === 'teacher') {
-      await db.execute('UPDATE teachers SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
-
-      // Force password change if not changed yet
-      // Temporarily disabled for testing
-      // if (!user.password_changed) {
-      //   return res.json({
-      //     success: true,
-      //     redirect: '/change-password',
-      //     message: 'Please change your default password.'
-      //   });
-      // }
-    }
-
-    // Log audit event
-    await logAudit(user.id, userType, 'LOGIN', `User logged in from ${req.ip}`, req);
-
-    res.json({
-      success: true,
-      userType: userType,
-      redirect: userType === 'teacher' ? '/teacher' : '/student'
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    res.json({ success: false, message: 'Login failed. Please try again.' });
-  }
-});
-
 // Signup
 app.post('/signup', async (req, res) => {
   const role = req.body.role;
