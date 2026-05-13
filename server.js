@@ -52,48 +52,63 @@ app.get('/', (req, res) => {
 
 // Login
 app.post('/login', async (req, res) => {
-  const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
-  const password = req.body.password ? req.body.password.trim() : '';
+  const role = req.body.role ? req.body.role.trim().toLowerCase() : 'student';
   const prn = req.body.prn ? req.body.prn.trim() : '';
+  const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
+ 
   
   try {
-    // Query user with email and password
-    const result = await db.execute('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
-    const user = result.rows[0];
-    
-    if (user) {
-      // If it's a student, validate PRN against personal_info
-      if (user.role === 'student') {
-        if (!prn) {
-          return res.json({ success: false, message: 'PRN is required for students' });
-        }
-        
-        // Check if PRN exists in personal_info table
-        const prnCheck = await db.execute('SELECT Roll_No FROM personal_info WHERE PRN = ?', [prn]);
-        
-        if (prnCheck.rows.length === 0) {
-          return res.json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
-        }
-        
-        // Verify that the PRN matches the one in the user record
-        if (user.PRN !== prn) {
-          return res.json({ success: false, message: 'PRN does not match your account. Please enter the correct PRN.' });
-        }
-        
-        // Get Roll_No from personal_info (in case it wasn't set during signup)
-        const rollNo = prnCheck.rows[0].Roll_No;
-        
-        // Update user's Roll_No if not already set
-        if (!user.Roll_No || user.Roll_No !== rollNo) {
-          await db.execute('UPDATE users SET Roll_No = ? WHERE id = ?', [rollNo, user.id]);
-        }
+    if (role === 'student') {
+      // Student login: email + PRN (no password)
+      if (!email) {
+        return res.json({ success: false, message: 'Email is required for student login' });
+      }
+      if (!prn) {
+        return res.json({ success: false, message: 'PRN is required for student login' });
+      }
+      
+      // Validate PRN exists in personal_info table
+      const prnCheck = await db.execute('SELECT Roll_No FROM personal_info WHERE PRN = ?', [prn]);
+      
+      if (prnCheck.rows.length === 0) {
+        return res.json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
+      }
+      
+      // Find user by email and PRN
+      const result = await db.execute('SELECT * FROM users WHERE email = ? AND PRN = ? AND role = ?', [email, prn, 'student']);
+      const user = result.rows[0];
+      
+      if (!user) {
+        return res.json({ success: false, message: 'Student account not found with this email and PRN combination. Please sign up first.' });
+      }
+      
+      // Get Roll_No from personal_info and update if needed
+      const rollNo = prnCheck.rows[0].Roll_No;
+      if (!user.Roll_No || user.Roll_No !== rollNo) {
+        await db.execute('UPDATE users SET Roll_No = ? WHERE id = ?', [rollNo, user.id]);
       }
       
       req.session.userId = user.id;
       req.session.role = user.role;
       res.json({ success: true, role: user.role });
+    } else if (role === 'teacher') {
+      // Teacher login: email + password
+      if (!email || !password) {
+        return res.json({ success: false, message: 'Email and password are required for teacher login' });
+      }
+      
+      const result = await db.execute('SELECT * FROM users WHERE email = ? AND password = ? AND role = ?', [email, password, 'teacher']);
+      const user = result.rows[0];
+      
+      if (user) {
+        req.session.userId = user.id;
+        req.session.role = user.role;
+        res.json({ success: true, role: user.role });
+      } else {
+        res.json({ success: false, message: 'Invalid email or password for teacher account' });
+      }
     } else {
-      res.json({ success: false, message: 'Invalid credentials' });
+      res.json({ success: false, message: 'Invalid role specified' });
     }
   } catch (err) {
     console.error('Login error:', err);
