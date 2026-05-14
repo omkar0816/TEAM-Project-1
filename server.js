@@ -13,6 +13,9 @@ const ExcelJS = require('exceljs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProduction = process.env.NODE_ENV === 'production';
+const secureCookies = process.env.SESSION_COOKIE_SECURE === 'true';
+const trustProxy = process.env.TRUST_PROXY === 'true';
 
 // Utility functions
 function validateInput(input, type, maxLength = 255) {
@@ -70,7 +73,7 @@ async function logAudit(userId, userType, action, details, req) {
 }
 
 // If running behind a proxy (common in cloud deployments),
-app.set('trust proxy', 1);
+app.set('trust proxy', trustProxy ? 1 : 0);
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -80,7 +83,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // true in production with HTTPS
+    secure: secureCookies,
     httpOnly: true,
     sameSite: 'strict',
     maxAge: 30 * 60 * 1000 // 30 minutes inactivity
@@ -131,6 +134,16 @@ app.get('/test', (req, res) => {
 app.post('/test-post', (req, res) => {
   console.log('TEST POST ROUTE CALLED', req.body);
   res.json({ message: 'Test POST route works', body: req.body });
+});
+
+app.get('/health', async (req, res) => {
+  try {
+    await db.execute('SELECT 1');
+    res.json({ status: 'ok', uptime: process.uptime() });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    res.status(503).json({ status: 'error', error: 'Database unavailable' });
+  }
 });
 
 // login page

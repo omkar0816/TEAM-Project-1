@@ -83,6 +83,8 @@ TURSO_DB_URL=file:attendance.db
 SESSION_SECRET=your-secure-session-secret
 DEFAULT_TEACHER_EMAIL=admin@college.edu
 DEFAULT_TEACHER_PASSWORD=TempPass123!
+SESSION_COOKIE_SECURE=false
+TRUST_PROXY=false
 ```
 
 ## 📈 API Endpoints

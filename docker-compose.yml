@@ -5,6 +5,8 @@ services:
     build: .
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - TURSO_DB_URL=${TURSO_DB_URL}
@@ -13,8 +15,11 @@ services:
       - DEFAULT_TEACHER_EMAIL=${DEFAULT_TEACHER_EMAIL}
       - DEFAULT_TEACHER_PASSWORD=${DEFAULT_TEACHER_PASSWORD}
       - BACKUP_API_KEY=${BACKUP_API_KEY}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE}
+      - TRUST_PROXY=${TRUST_PROXY}
     volumes:
       - ./backups:/app/backups
+      - ./attendance.db:/app/attendance.db
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]

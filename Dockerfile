@@ -2,6 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install runtime utilities needed by the container
+RUN apk add --no-cache curl
+
 # Copy package files
 COPY package*.json ./
 
@@ -13,6 +16,7 @@ COPY src/ ./src/
 COPY server.js ./
 COPY *.html ./
 COPY *.md ./
+COPY public ./public
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
@@ -29,7 +33,7 @@ USER nextjs
 EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
 CMD ["npm", "start"]
