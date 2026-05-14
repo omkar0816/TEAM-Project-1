@@ -67,11 +67,15 @@ app.post('/login', async (req, res) => {
         return res.json({ success: false, message: 'PRN is required for student login' });
       }
       
-      // Validate PRN exists in personal_info table
-      const prnCheck = await db.execute('SELECT Roll_No FROM personal_info WHERE PRN = ?', [prn]);
+      // Validate PRN exists in personal_info table and email matches
+      const prnCheck = await db.execute('SELECT EMAIL FROM personal_info WHERE PRN = ?', [prn]);
       
       if (prnCheck.rows.length === 0) {
         return res.json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
+      }
+      
+      if (prnCheck.rows[0].EMAIL.toLowerCase() !== email) {
+        return res.json({ success: false, message: 'PRN and email do not match our records.' });
       }
       
       // Find user by email and PRN
@@ -80,12 +84,6 @@ app.post('/login', async (req, res) => {
       
       if (!user) {
         return res.json({ success: false, message: 'Student account not found with this email and PRN combination. Please sign up first.' });
-      }
-      
-      // Get Roll_No from personal_info and update if needed
-      const rollNo = prnCheck.rows[0].Roll_No;
-      if (!user.Roll_No || user.Roll_No !== rollNo) {
-        await db.execute('UPDATE users SET Roll_No = ? WHERE id = ?', [rollNo, user.id]);
       }
       
       req.session.userId = user.id;
@@ -122,43 +120,44 @@ app.post('/signup', async (req, res) => {
   const firstName = req.body.firstName ? req.body.firstName.trim() : '';
   const lastName = req.body.lastName ? req.body.lastName.trim() : '';
   const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
-  const password = req.body.password ? req.body.password.trim() : '';
   const prn = req.body.prn ? req.body.prn.trim() : '';
   const year = req.body.year ? req.body.year.trim() : '';
   const department = req.body.department ? req.body.department.trim() : '';
   const empId = req.body.empId ? req.body.empId.trim() : '';
   const subject = '';
 
-  if (!role || !email || !password) {
-    return res.status(400).json({ success: false, message: 'Role, email, and password are required' });
+  if (!role || !email) {
+    return res.status(400).json({ success: false, message: 'Role, email are required' });
   }
   if (!['student', 'teacher'].includes(role)) {
     return res.status(400).json({ success: false, message: 'Invalid role' });
   }
 
   try {
-    // For students, validate PRN exists in personal_info table
+    // For students, validate PRN exists in personal_info table and email matches
     if (role === 'student') {
       if (!prn) {
         return res.status(400).json({ success: false, message: 'PRN is required for students' });
       }
       
-      // Check if PRN exists in personal_info table and get Roll_No
-      const prnCheck = await db.execute('SELECT Roll_No FROM personal_info WHERE PRN = ?', [prn]);
+      // Check if PRN exists in personal_info table and email matches
+      const prnCheck = await db.execute('SELECT EMAIL FROM personal_info WHERE PRN = ?', [prn]);
       
       if (prnCheck.rows.length === 0) {
         return res.status(400).json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
       }
       
-      const rollNo = prnCheck.rows[0].Roll_No;
+      if (prnCheck.rows[0].EMAIL.toLowerCase() !== email.toLowerCase()) {
+        return res.status(400).json({ success: false, message: 'PRN and email do not match our records.' });
+      }
       
       // Insert with foreign key references to personal_info
-      await db.execute('INSERT INTO users (email, password, role, first_name, last_name, PRN, Roll_No, year, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [email, password, role, firstName, lastName, prn, rollNo, year, department]);
+      await db.execute('INSERT INTO users ( first_name, last_name, PRN, email, role, year, department) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [firstName, lastName, prn, email, role, year, department]);
     } else {
       // For teachers, no PRN required
-      await db.execute('INSERT INTO users (email, password, role, first_name, last_name, emp_id, subject) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [email, password, role, firstName, lastName, empId, subject]);
+      await db.execute('INSERT INTO users ( first_name, last_name,role,email,password ,emp_id, subject) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [firstName, lastName, role, email, password, empId, subject]);
     }
     
     res.json({ success: true });
@@ -171,7 +170,7 @@ app.post('/signup', async (req, res) => {
     } else if (err.message && err.message.includes('UNIQUE constraint failed: users.PRN')) {
       message = 'This PRN is already registered.';
     } else if (err.message && err.message.includes('FOREIGN KEY constraint failed')) {
-      message = 'Invalid PRN or Roll Number. Please enter a valid PRN from your enrollment records.';
+      message = 'Invalid PRN. Please enter a valid PRN from your enrollment records.';
     }
     
     res.status(400).json({ success: false, message });
