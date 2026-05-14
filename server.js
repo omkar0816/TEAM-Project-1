@@ -5,10 +5,8 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const bcrypt = require('bcrypt');
-const rateLimit = require('express-rate-limit');
-const { db, initDB } = require('./src/models/database');
-const TursoSessionStore = require('./src/services/sessionStore');
+const { db } = require('./database');
+const TursoSessionStore = require('./sessionStore');
 const ExcelJS = require('exceljs');
 
 const app = express();
@@ -75,53 +73,25 @@ async function logAudit(userId, userType, action, details, req) {
 // If running behind a proxy (common in cloud deployments),
 app.set('trust proxy', trustProxy ? 1 : 0);
 
+// bich ka mamla
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
   store: new TursoSessionStore(db),
-  secret: process.env.SESSION_SECRET || 'wadia-secret-key-change-in-production',
+  secret: process.env.SESSION_SECRET || 'wadia-secret-key', // Change in production
   resave: false,
   saveUninitialized: false,
   cookie: {
+<<<<<<< HEAD
     secure: secureCookies,
     httpOnly: true,
-    sameSite: 'strict',
-    maxAge: 30 * 60 * 1000 // 30 minutes inactivity
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
 
 app.use(express.static(path.join(__dirname)));
-
-// Rate limiting middleware
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts per IP
-  message: { success: false, message: 'Too many login attempts. Please try again later.' },
-  standardHeaders: false,
-  legacyHeaders: false,
-});
-
-const attendanceLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 attempts per minute per session
-  keyGenerator: (req) => req.session.userId || req.ip,
-  message: { success: false, message: 'Too many attendance attempts. Please try again later.' },
-  standardHeaders: false,
-  legacyHeaders: false,
-});
-
-// Utility function to calculate distance between two coordinates
-function calculateDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
 
 // Routes
 
@@ -145,7 +115,6 @@ app.get('/health', async (req, res) => {
     res.status(503).json({ status: 'error', error: 'Database unavailable' });
   }
 });
-
 // login page
 app.get('/', (req, res) => {
   if (req.session.userId) {
@@ -160,100 +129,68 @@ app.get('/', (req, res) => {
   }
 });
 
-app.get('/teacher', (req, res) => {
-  if (!req.session.userId || req.session.role !== 'teacher') return res.redirect('/');
-  res.sendFile(path.join(__dirname, 'teacher.html'));
-});
-
-app.get('/student', (req, res) => {
-  if (!req.session.userId || req.session.role !== 'student') return res.redirect('/');
-  res.sendFile(path.join(__dirname, 'student.html'));
-});
-
 // Login
-app.post('/login', loginLimiter, async (req, res) => {
+app.post('/login', async (req, res) => {
+  const role = req.body.role ? req.body.role.trim().toLowerCase() : 'student';
+  const prn = req.body.prn ? req.body.prn.trim() : '';
+  const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
+  const password = req.body.password ? req.body.password.trim() : '';
+ 
+  
   try {
-    const email = validateInput(req.body.email, 'email', 100);
-    const password = String(req.body.password || '').trim();
-    const prn = req.body.prn ? validateInput(req.body.prn, 'prn') : '';
-
-    if (!email || !password || password.length < 6) {
-      return res.json({ success: false, message: 'Invalid credentials' });
-    }
-
-    // Check teachers table first
-    let user = null;
-    let userType = null;
-
-    const teacherResult = await db.execute('SELECT * FROM teachers WHERE email = ?', [email]);
-    
-    if (teacherResult.rows.length > 0) {
-      user = teacherResult.rows[0];
-      userType = 'teacher';
-    } else {
-      // Check students table
-      const studentResult = await db.execute('SELECT * FROM students WHERE email = ?', [email]);
-      
-      if (studentResult.rows.length > 0) {
-        user = studentResult.rows[0];
-        userType = 'student';
-
-        // For students, verify PRN if provided
-        if (prn && user.prn !== prn) {
-          return res.json({ success: false, message: 'PRN does not match your account.' });
-        }
+    if (role === 'student') {
+      // Student login: email + PRN (no password)
+      if (!email) {
+        return res.json({ success: false, message: 'Email is required for student login' });
       }
-    }
-
-    if (!user) {
-      return res.json({ success: false, message: 'Invalid credentials' });
-    }
-
-    // Verify password
-    let passwordMatch = false;
-    if (userType === 'teacher') {
-      passwordMatch = await bcrypt.compare(password, user.password_hash);
+      if (!prn) {
+        return res.json({ success: false, message: 'PRN is required for student login' });
+      }
+      
+      // Validate PRN exists in personal_info table and email matches
+      const prnCheck = await db.execute('SELECT EMAIL FROM personal_info WHERE PRN = ?', [prn]);
+      
+      if (prnCheck.rows.length === 0) {
+        return res.json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
+      }
+      
+      if (prnCheck.rows[0].EMAIL.toLowerCase() !== email) {
+        return res.json({ success: false, message: 'PRN and email do not match our records.' });
+      }
+      
+      // Find user by email and PRN
+      const result = await db.execute('SELECT * FROM users WHERE email = ? AND PRN = ? AND role = ?', [email, prn, 'student']);
+      const user = result.rows[0];
+      
+      if (!user) {
+        return res.json({ success: false, message: 'Student account not found with this email and PRN combination. Please sign up first.' });
+      }
+      
+      req.session.userId = user.id;
+      req.session.role = user.role;
+      res.json({ success: true, role: user.role });
+    } else if (role === 'teacher') {
+      // Teacher login: email + password
+      if (!email || !password) {
+        return res.json({ success: false, message: 'Email and password are required for teacher login' });
+      }
+      
+      const result = await db.execute('SELECT * FROM users WHERE email = ? AND password = ? AND role = ?', [email, password, 'teacher']);
+      const user = result.rows[0];
+      
+      if (user) {
+        req.session.userId = user.id;
+        req.session.role = user.role;
+        res.json({ success: true, role: user.role });
+      } else {
+        res.json({ success: false, message: 'Invalid email or password for teacher account' });
+      }
     } else {
-      // For students, PRN serves as the password
-      passwordMatch = (password === user.prn);
+      res.json({ success: false, message: 'Invalid role specified' });
     }
-
-    if (!passwordMatch) {
-      return res.json({ success: false, message: 'Invalid credentials' });
-    }
-
-    // Set session
-    req.session.userId = user.id;
-    req.session.role = userType;
-    req.session.email = user.email;
-
-    // Update last login for teachers
-    if (userType === 'teacher') {
-      await db.execute('UPDATE teachers SET last_login = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
-
-      // Force password change if not changed yet
-      // Temporarily disabled for testing
-      // if (!user.password_changed) {
-      //   return res.json({
-      //     success: true,
-      //     redirect: '/change-password',
-      //     message: 'Please change your default password.'
-      //   });
-      // }
-    }
-
-    // Log audit event
-    await logAudit(user.id, userType, 'LOGIN', `User logged in from ${req.ip}`, req);
-
-    res.json({
-      success: true,
-      userType: userType,
-      redirect: userType === 'teacher' ? '/teacher' : '/student'
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    res.json({ success: false, message: 'Login failed. Please try again.' });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Database error' });
   }
 });
 
@@ -263,108 +200,61 @@ app.post('/signup', async (req, res) => {
   const firstName = req.body.firstName ? req.body.firstName.trim() : '';
   const lastName = req.body.lastName ? req.body.lastName.trim() : '';
   const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
-  const password = req.body.password ? req.body.password.trim() : '';
   const prn = req.body.prn ? req.body.prn.trim() : '';
   const year = req.body.year ? req.body.year.trim() : '';
   const department = req.body.department ? req.body.department.trim() : '';
   const empId = req.body.empId ? req.body.empId.trim() : '';
   const subject = '';
+  const password = req.body.password ? req.body.password.trim() : '';
 
-  if (!role || !email || !password) {
-    return res.status(400).json({ success: false, message: 'Role, email, and password are required' });
+  if (!role || !email) {
+    return res.status(400).json({ success: false, message: 'Role, email are required' });
   }
   if (!['student', 'teacher'].includes(role)) {
     return res.status(400).json({ success: false, message: 'Invalid role' });
   }
 
   try {
+    // For students, validate PRN exists in personal_info table and email matches
     if (role === 'student') {
-      if (!prn || !year || !department) {
-        return res.status(400).json({ success: false, message: 'PRN, year, and department are required for students' });
+      if (!prn) {
+        return res.status(400).json({ success: false, message: 'PRN is required for students' });
       }
       
-      // For students, we need to generate a roll_no. Let's find the next available roll number
-      const rollResult = await db.execute('SELECT MAX(roll_no) as max_roll FROM students');
-      const nextRollNo = (rollResult.rows[0]?.max_roll || 0) + 1;
+      // Check if PRN exists in personal_info table and email matches
+      const prnCheck = await db.execute('SELECT EMAIL FROM personal_info WHERE PRN = ?', [prn]);
       
-      await db.execute(
-        'INSERT INTO students (prn, roll_no, name, email, class, department, year) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [prn, nextRollNo, `${firstName} ${lastName}`.trim(), email, year, department, year]
-      );
+      if (prnCheck.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
+      }
+      
+      if (prnCheck.rows[0].EMAIL.toLowerCase() !== email.toLowerCase()) {
+        return res.status(400).json({ success: false, message: 'PRN and email do not match our records.' });
+      }
+      
+      // Insert with foreign key references to personal_info
+      await db.execute('INSERT INTO users ( first_name, last_name, PRN, email, role, year, department) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [firstName, lastName, prn, email, role, year, department]);
     } else {
-      if (!empId) {
-        return res.status(400).json({ success: false, message: 'Employee ID is required for teachers' });
-      }
-      
-      const hashedPassword = await bcrypt.hash(password, 10);
-      await db.execute(
-        'INSERT INTO teachers (emp_id, name, email, department, subject, password_hash) VALUES (?, ?, ?, ?, ?, ?)',
-        [empId, `${firstName} ${lastName}`.trim(), email, department, subject, hashedPassword]
-      );
+      // For teachers, no PRN required
+      await db.execute('INSERT INTO users ( first_name, last_name,role,email,password ,emp_id, subject) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [firstName, lastName, role, email, password, empId, subject]);
     }
+    
     res.json({ success: true });
   } catch (err) {
     console.error('Signup error:', err.message);
     
     let message = 'Registration failed';
-    if (err.message && err.message.includes('UNIQUE constraint failed')) {
-      if (err.message.includes('email')) {
-        message = 'Email already registered. Please log in instead.';
-      } else if (err.message.includes('prn')) {
-        message = 'This PRN is already registered.';
-      } else if (err.message.includes('emp_id')) {
-        message = 'This Employee ID is already registered.';
-      }
+    if (err.message && err.message.includes('UNIQUE constraint failed: users.email')) {
+      message = 'Email already registered. Please log in instead.';
+    } else if (err.message && err.message.includes('UNIQUE constraint failed: users.PRN')) {
+      message = 'This PRN is already registered.';
+    } else if (err.message && err.message.includes('FOREIGN KEY constraint failed')) {
+      message = 'Invalid PRN. Please enter a valid PRN from your enrollment records.';
     }
     
     res.status(400).json({ success: false, message });
-  }
-});
-
-// Change password route
-app.post('/change-password', async (req, res) => {
-  try {
-    if (!req.session.userId || req.session.role !== 'teacher') {
-      return res.status(403).json({ success: false, message: 'Unauthorized' });
-    }
-
-    const { currentPassword, newPassword } = req.body;
-
-    if (!newPassword || newPassword.length < 8) {
-      return res.json({ success: false, message: 'New password must be at least 8 characters long' });
-    }
-
-    // Get current teacher
-    const result = await db.execute('SELECT password_hash FROM teachers WHERE id = ?', [req.session.userId]);
-    const teacher = result.rows[0];
-
-    if (!teacher) {
-      return res.json({ success: false, message: 'Teacher not found' });
-    }
-
-    // Verify current password
-    const isValid = await bcrypt.compare(currentPassword, teacher.password_hash);
-    if (!isValid) {
-      return res.json({ success: false, message: 'Current password is incorrect' });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // Update password and mark as changed
-    await db.execute(
-      'UPDATE teachers SET password_hash = ?, password_changed = ? WHERE id = ?',
-      [hashedPassword, true, req.session.userId]
-    );
-
-    // Log audit event
-    await logAudit(req.session.userId, 'teacher', 'PASSWORD_CHANGE', 'Password changed successfully', req);
-
-    res.json({ success: true, message: 'Password changed successfully' });
-
-  } catch (error) {
-    console.error('Password change error:', error);
-    res.json({ success: false, message: 'Failed to change password' });
   }
 });
 
@@ -384,25 +274,8 @@ app.get('/profile', async (req, res) => {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   try {
-    let user = null;
-    if (req.session.role === 'teacher') {
-      const result = await db.execute('SELECT id, emp_id, name, email, department, subject FROM teachers WHERE id = ?', [req.session.userId]);
-      user = result.rows[0];
-      if (user) {
-        user.role = 'teacher';
-        user.first_name = user.name.split(' ')[0];
-        user.last_name = user.name.split(' ').slice(1).join(' ');
-      }
-    } else {
-      const result = await db.execute('SELECT id, prn, roll_no, name, email, class, department, year FROM students WHERE id = ?', [req.session.userId]);
-      user = result.rows[0];
-      if (user) {
-        user.role = 'student';
-        user.first_name = user.name.split(' ')[0];
-        user.last_name = user.name.split(' ').slice(1).join(' ');
-      }
-    }
-    
+    const result = await db.execute('SELECT id, email, role, first_name, last_name, department, subject, emp_id FROM users WHERE id = ?', [req.session.userId]);
+    const user = result.rows[0];
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -413,166 +286,103 @@ app.get('/profile', async (req, res) => {
   }
 });
 
-// Generate attendance session (for teachers)
-app.post('/generate-session', async (req, res) => {
+// Generate Code (for teachers)
+app.post('/generate-code', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
-  try {
-    const { subject, class: className, department, semester } = req.body;
-
-    if (!subject || !className || !department || !semester) {
-      return res.json({ success: false, message: 'All fields are required' });
+  const { subject } = req.body;
+  const expiresAt = Math.floor(Date.now() / 1000) + 50; // 50 seconds in epoch seconds
+  const teacherResult = await db.execute('SELECT subject FROM users WHERE id = ?', [req.session.userId]);
+  const teacherInfo = teacherResult.rows[0] || {};
+  const sessionSubject = subject || teacherInfo.subject || 'Lecture';
+  const tryInsertCode = async (attempt = 0) => {
+    if (attempt >= 5) {
+      return res.status(500).json({ error: 'Unable to generate a unique code. Please try again.' });
     }
 
-    // Get teacher info
-    const teacherResult = await db.execute('SELECT name, department FROM teachers WHERE id = ?', [req.session.userId]);
-    const teacher = teacherResult.rows[0];
-
-    if (!teacher) {
-      return res.json({ success: false, message: 'Teacher not found' });
+    const code = Math.floor(10000 + Math.random() * 90000).toString();
+    try {
+      await db.execute('INSERT INTO qr_codes (id, teacher_id, subject, expires_at) VALUES (?, ?, ?, ?)', [code, req.session.userId, sessionSubject, expiresAt]);
+      res.json({ code, subject: sessionSubject });
+    } catch (err) {
+      if (err.message && err.message.includes('UNIQUE constraint failed')) {
+        return tryInsertCode(attempt + 1);
+      }
+      console.error('Generate code DB error:', err);
+      res.status(500).json({ error: 'Database error' });
     }
+  };
 
-    const sessionId = uuidv4();
-    const expiresAt = new Date(Date.now() + 50 * 1000).toISOString(); // 50 seconds from now
-
-    // Create attendance session
-    await db.execute(`
-      INSERT INTO attendance_sessions (id, teacher_id, subject_id, class, department, semester, expires_at)
-      VALUES (?, ?, (SELECT id FROM subjects WHERE name = ? LIMIT 1), ?, ?, ?, ?)
-    `, [sessionId, req.session.userId, subject, className, department, semester, expiresAt]);
-
-    // Log audit event
-    await logAudit(req.session.userId, 'teacher', 'CREATE_SESSION',
-      `Created attendance session for ${subject} - ${className}`, req);
-
-    res.json({
-      success: true,
-      sessionId,
-      subject,
-      class: className,
-      expiresAt
-    });
-
-  } catch (error) {
-    console.error('Generate session error:', error);
-    res.json({ success: false, message: 'Failed to create attendance session' });
-  }
+  tryInsertCode();
 });
 
 // Mark attendance (for students)
-app.post('/mark-attendance', async (req, res) => {
-  const { sessionId, deviceFingerprint, latitude, longitude } = req.body;
-
-  if (!sessionId) {
-    return res.json({ success: false, message: 'Invalid session ID' });
+app.get('/mark-attendance', async (req, res) => {
+  const { code } = req.query;
+  if (!code) {
+    return res.status(400).send('Invalid code');
   }
-
-  if (!req.session.userId || req.session.role !== 'student') {
-    return res.json({ success: false, message: 'Please log in as a student first' });
-  }
-
   try {
-    // Check if session is valid and not expired
-    const sessionResult = await db.execute(`
-      SELECT * FROM attendance_sessions
-      WHERE id = ? AND expires_at > CURRENT_TIMESTAMP
-    `, [sessionId]);
-
-    const session = sessionResult.rows[0];
-    if (!session) {
-      return res.json({ success: false, message: 'Session expired or invalid' });
+    const now = Math.floor(Date.now() / 1000);
+    // Check if code is valid
+    const result = await db.execute('SELECT * FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
+    const codeRow = result.rows[0];
+    if (!codeRow) {
+      return res.send('Code expired or invalid');
     }
-
-    // Device lock: Check if this device has already marked attendance for this session
-    if (deviceFingerprint) {
-      const deviceCheck = await db.execute(`
-        SELECT id FROM attendance_records
-        WHERE session_id = ? AND device_fingerprint = ?
-      `, [sessionId, deviceFingerprint]);
-
-      if (deviceCheck.rows.length > 0) {
-        await logAudit(req.session.userId, 'student', 'ATTENDANCE_BLOCKED',
-          `Blocked duplicate attendance from same device for session ${sessionId}`, req);
-        return res.json({ success: false, message: 'Attendance already marked from this device' });
-      }
+    // If student logged in, mark attendance
+    if (req.session.userId && req.session.role === 'student') {
+      await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
+      res.send('Attendance marked successfully!');
+    } else {
+      // If not logged in, redirect to login or show button
+      res.send(`
+        <h1>Mark Attendance</h1>
+        <p>You need to be logged in as a student.</p>
+        <a href="/">Login</a>
+        <br><br>
+        <button onclick="mark()">Mark Attendance</button>
+        <script>
+          function mark() {
+            fetch('/mark-attendance-post', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: '${code}' })
+            })
+              .then(res => res.text())
+              .then(msg => alert(msg));
+          }
+        </script>
+      `);
     }
-
-    // Location check (basic campus boundary check - example coordinates)
-    // Wadia College approximate coordinates: 19.0178° N, 72.8562° E
-    const CAMPUS_LAT = 19.0178;
-    const CAMPUS_LNG = 72.8562;
-    const MAX_DISTANCE_KM = 0.5; // 500 meters radius
-
-    if (latitude && longitude) {
-      const distance = calculateDistance(latitude, longitude, CAMPUS_LAT, CAMPUS_LNG);
-      if (distance > MAX_DISTANCE_KM) {
-        await logAudit(req.session.userId, 'student', 'LOCATION_BLOCKED',
-          `Blocked attendance from outside campus (distance: ${distance.toFixed(2)}km)`, req);
-        return res.json({ success: false, message: 'Attendance must be marked within campus premises' });
-      }
-    }
-
-    // Check if student already marked attendance for this session
-    const existingResult = await db.execute(`
-      SELECT id FROM attendance_records
-      WHERE student_id = ? AND session_id = ?
-    `, [req.session.userId, sessionId]);
-
-    if (existingResult.rows.length > 0) {
-      return res.json({ success: false, message: 'Attendance already marked for this session' });
-    }
-
-    // Insert attendance record
-    await db.execute(`
-      INSERT INTO attendance_records
-      (student_id, session_id, device_fingerprint, ip_address, user_agent, location_lat, location_lng)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [
-      req.session.userId,
-      sessionId,
-      deviceFingerprint || req.get('User-Agent'),
-      req.ip,
-      req.get('User-Agent'),
-      latitude || null,
-      longitude || null
-    ]);
-
-    // Log audit event
-    await logAudit(req.session.userId, 'student', 'MARK_ATTENDANCE',
-      `Marked attendance for session ${sessionId}`, req);
-
-    res.json({ success: true, message: 'Attendance marked successfully!' });
-
-  } catch (error) {
-    console.error('Mark attendance error:', error);
-    res.json({ success: false, message: 'Failed to mark attendance' });
+  } catch (err) {
+    console.error('Mark attendance error:', err);
+    res.status(500).send('Error marking attendance');
   }
 });
 
 // POST version for AJAX
-app.post('/mark-attendance-post', attendanceLimiter, async (req, res) => {
+app.post('/mark-attendance-post', async (req, res) => {
+  const { code } = req.body;
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).send('Unauthorized');
   }
   try {
-    const code = validateInput(req.body.code, 'number-code');
     const studentId = req.session.userId;
     const now = Math.floor(Date.now() / 1000);
-    
     // Validate code exists and is not expired
     const codeResult = await db.execute('SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
     if (!codeResult.rows[0]) {
       return res.send('Code expired or invalid');
     }
-    
     // Validate student exists and is not already marked for this code
     const studentResult = await db.execute('SELECT id FROM users WHERE id = ? AND role = \'student\'', [studentId]);
     if (!studentResult.rows[0]) {
       return res.status(403).send('Unauthorized or student not found');
     }
-    
     // Insert attendance with proper error handling
     try {
       await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [studentId, code]);
@@ -584,12 +394,12 @@ app.post('/mark-attendance-post', attendanceLimiter, async (req, res) => {
       throw insertErr;
     }
   } catch (err) {
-    console.error('Mark attendance post error:', err.message);
-    res.status(400).send('Invalid code format or error: ' + err.message);
+    console.error('Mark attendance post error:', err);
+    res.status(500).send('Error: ' + (err.message || 'unknown'));
   }
 });
 
-// Get all sessions for teacher
+// Get all sessions/lectures for teacher
 app.get('/sessions', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
@@ -597,13 +407,11 @@ app.get('/sessions', async (req, res) => {
 
   try {
     const result = await db.execute(`
-      SELECT s.id, s.class, s.department, s.semester, s.created_at, s.expires_at,
-             sub.name as subject,
-             (SELECT COUNT(*) FROM attendance_records WHERE session_id = s.id) as attendance_count
-      FROM attendance_sessions s
-      LEFT JOIN subjects sub ON s.subject_id = sub.id
-      WHERE s.teacher_id = ?
-      ORDER BY s.created_at DESC
+      SELECT id, subject, created_at, expires_at,
+             (SELECT COUNT(*) FROM attendance WHERE qr_id = qr_codes.id) as attendance_count
+      FROM qr_codes
+      WHERE teacher_id = ?
+      ORDER BY created_at DESC
     `, [req.session.userId]);
     res.json(result.rows);
   } catch (err) {
@@ -618,36 +426,29 @@ app.get('/session-attendance', async (req, res) => {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
-  const { sessionId } = req.query;
-  if (!sessionId) {
-    return res.status(400).json({ error: 'Session ID required' });
+  const { code } = req.query;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
   }
 
   try {
-    // First verify the session belongs to this teacher
-    const sessionResult = await db.execute(`
-      SELECT s.*, sub.name as subject_name
-      FROM attendance_sessions s
-      LEFT JOIN subjects sub ON s.subject_id = sub.id
-      WHERE s.id = ? AND s.teacher_id = ?
-    `, [sessionId, req.session.userId]);
-
-    const session = sessionResult.rows[0];
-    if (!session) {
+    // First verify the code belongs to this teacher
+    const codeResult = await db.execute('SELECT id, subject, created_at, expires_at FROM qr_codes WHERE id = ? AND teacher_id = ?', [code, req.session.userId]);
+    const codeRow = codeResult.rows[0];
+    if (!codeRow) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
     // Get all attendance for this session
     const attendanceResult = await db.execute(`
-      SELECT st.name, st.prn, st.roll_no, st.email, ar.marked_at
-      FROM attendance_records ar
-      JOIN students st ON ar.student_id = st.id
-      WHERE ar.session_id = ?
-      ORDER BY ar.marked_at ASC
-    `, [sessionId]);
-
+      SELECT u.first_name, u.last_name, u.prn, u.email, a.marked_at
+      FROM attendance a
+      JOIN users u ON a.student_id = u.id
+      WHERE a.qr_id = ?
+      ORDER BY a.marked_at ASC
+    `, [code]);
     res.json({
-      session: session,
+      session: codeRow,
       students: attendanceResult.rows
     });
   } catch (err) {
@@ -656,32 +457,28 @@ app.get('/session-attendance', async (req, res) => {
   }
 });
 
-// Get live count and student list for active session
+// Get live count and student list for active code
 app.get('/live-count', async (req, res) => {
-  const { sessionId } = req.query;
-  if (!sessionId) {
-    return res.status(400).json({ error: 'Session ID required' });
+  const { code } = req.query;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
   }
 
   try {
-    const sessionResult = await db.execute(`
-      SELECT id FROM attendance_sessions
-      WHERE id = ? AND expires_at > CURRENT_TIMESTAMP
-    `, [sessionId]);
-
-    const session = sessionResult.rows[0];
-    if (!session) {
+    const now = Math.floor(Date.now() / 1000);
+    const codeResult = await db.execute('SELECT id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
+    const codeRow = codeResult.rows[0];
+    if (!codeRow) {
       return res.json({ count: 0, students: [] });
     }
 
     const attendanceResult = await db.execute(`
-      SELECT st.name, st.prn, ar.marked_at
-      FROM attendance_records ar
-      JOIN students st ON ar.student_id = st.id
-      WHERE ar.session_id = ?
-      ORDER BY ar.marked_at ASC
-    `, [sessionId]);
-
+      SELECT u.first_name, u.last_name, u.prn, a.marked_at
+      FROM attendance a
+      JOIN users u ON a.student_id = u.id
+      WHERE a.qr_id = ?
+      ORDER BY a.marked_at ASC
+    `, [code]);
     res.json({ count: attendanceResult.rows.length, students: attendanceResult.rows });
   } catch (err) {
     console.error('Live count error:', err);
@@ -689,95 +486,55 @@ app.get('/live-count', async (req, res) => {
   }
 });
 
-// Teacher dashboard analytics
-app.get('/teacher-analytics', async (req, res) => {
+// Get teacher statistics
+app.get('/teacher-stats', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
+  const teacherId = req.session.userId;
+
   try {
-    const teacherId = req.session.userId;
+    // Get total lectures (unique QR codes generated)
+    const lecturesResult = await db.execute('SELECT COUNT(DISTINCT id) as totalLectures FROM qr_codes WHERE teacher_id = ?', [teacherId]);
+    const totalLectures = lecturesResult.rows[0]?.totalLectures || 0;
 
-    // Total sessions created
-    const sessionsResult = await db.execute(
-      'SELECT COUNT(*) as total FROM attendance_sessions WHERE teacher_id = ?',
-      [teacherId]
-    );
-    const totalSessions = sessionsResult.rows[0]?.total || 0;
-
-    // Total attendance marked
+    // Get total attendance count
     const attendanceResult = await db.execute(`
-      SELECT COUNT(*) as total FROM attendance_records ar
-      JOIN attendance_sessions s ON ar.session_id = s.id
-      WHERE s.teacher_id = ?
+      SELECT COUNT(*) as totalAttendance
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      WHERE q.teacher_id = ?
     `, [teacherId]);
-    const totalAttendance = attendanceResult.rows[0]?.total || 0;
+    const totalAttendance = attendanceResult.rows[0]?.totalAttendance || 0;
 
-    // Unique students reached
+    // Get unique students count
     const studentsResult = await db.execute(`
-      SELECT COUNT(DISTINCT ar.student_id) as total FROM attendance_records ar
-      JOIN attendance_sessions s ON ar.session_id = s.id
-      WHERE s.teacher_id = ?
+      SELECT COUNT(DISTINCT a.student_id) as uniqueStudents
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      WHERE q.teacher_id = ?
     `, [teacherId]);
-    const uniqueStudents = studentsResult.rows[0]?.total || 0;
+    const uniqueStudents = studentsResult.rows[0]?.uniqueStudents || 0;
 
-    // Subject-wise breakdown
-    const subjectBreakdown = await db.execute(`
-      SELECT sub.name as subject, COUNT(ar.id) as attendance_count,
-             COUNT(DISTINCT ar.student_id) as student_count
-      FROM attendance_records ar
-      JOIN attendance_sessions s ON ar.session_id = s.id
-      LEFT JOIN subjects sub ON s.subject_id = sub.id
-      WHERE s.teacher_id = ?
-      GROUP BY sub.name
-      ORDER BY attendance_count DESC
-    `, [teacherId]);
-
-    // Recent sessions with attendance counts
-    const recentSessions = await db.execute(`
-      SELECT s.id, s.class, s.created_at, sub.name as subject,
-             COUNT(ar.id) as attendance_count
-      FROM attendance_sessions s
-      LEFT JOIN subjects sub ON s.subject_id = sub.id
-      LEFT JOIN attendance_records ar ON s.id = ar.session_id
-      WHERE s.teacher_id = ?
-      GROUP BY s.id, s.class, s.created_at, sub.name
-      ORDER BY s.created_at DESC
-      LIMIT 10
-    `, [teacherId]);
-
-    // Low attendance students (less than 75% of sessions)
-    const lowAttendanceStudents = await db.execute(`
-      SELECT st.name, st.prn, st.roll_no,
-             COUNT(ar.id) as attended_sessions,
-             ROUND(CAST(COUNT(ar.id) AS FLOAT) / NULLIF((
-               SELECT COUNT(*) FROM attendance_sessions
-               WHERE teacher_id = ? AND class = st.class
-             ), 0) * 100, 1) as attendance_percentage
-      FROM students st
-      LEFT JOIN attendance_records ar ON st.id = ar.student_id
-      LEFT JOIN attendance_sessions s ON ar.session_id = s.id AND s.teacher_id = ?
-      GROUP BY st.id, st.name, st.prn, st.roll_no, st.class
-      HAVING attendance_percentage < 75 OR attendance_percentage IS NULL
-      ORDER BY attendance_percentage ASC
-      LIMIT 20
-    `, [teacherId, teacherId]);
+    // Calculate average attendance percentage
+    let avgAttendance = 0;
+    if (totalLectures > 0 && uniqueStudents > 0) {
+      // This is a simplified calculation - in reality you'd need class size per lecture
+      // For now, we'll assume each lecture has the same number of potential students
+      avgAttendance = Math.round((totalAttendance / (totalLectures * uniqueStudents)) * 100);
+      avgAttendance = Math.min(avgAttendance, 100); // Cap at 100%
+    }
 
     res.json({
-      overview: {
-        totalSessions,
-        totalAttendance,
-        uniqueStudents,
-        averageAttendance: totalSessions > 0 ? Math.round((totalAttendance / totalSessions) * 100) / 100 : 0
-      },
-      subjectBreakdown: subjectBreakdown.rows,
-      recentSessions: recentSessions.rows,
-      lowAttendanceStudents: lowAttendanceStudents.rows
+      totalLectures: totalLectures,
+      totalAttendance: totalAttendance,
+      avgAttendance: avgAttendance,
+      uniqueStudents: uniqueStudents
     });
-
-  } catch (error) {
-    console.error('Analytics error:', error);
-    res.status(500).json({ error: 'Failed to load analytics' });
+  } catch (err) {
+    console.error('Teacher stats error:', err);
+    res.status(500).json({ error: 'Database error' });
   }
 });
 
@@ -790,15 +547,13 @@ app.get('/attendance', async (req, res) => {
   const teacherId = req.session.userId;
   try {
     const result = await db.execute(`
-      SELECT ar.marked_at, s.class, s.department, sub.name as subject,
-             st.name as student_name, st.prn, st.roll_no, st.email
-      FROM attendance_records ar
-      JOIN attendance_sessions s ON ar.session_id = s.id
-      LEFT JOIN subjects sub ON s.subject_id = sub.id
-      JOIN students st ON ar.student_id = st.id
-      WHERE s.teacher_id = ?
-      ORDER BY ar.marked_at DESC
-      LIMIT 100
+      SELECT a.marked_at, q.subject, q.id as session_id,
+             u.first_name, u.last_name, u.prn, u.email
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      JOIN users u ON a.student_id = u.id
+      WHERE q.teacher_id = ?
+      ORDER BY a.marked_at DESC
     `, [teacherId]);
     res.json(result.rows);
   } catch (err) {
@@ -814,14 +569,12 @@ app.get('/my-attendance', async (req, res) => {
   }
   try {
     const result = await db.execute(`
-      SELECT ar.marked_at, s.class, s.department, sub.name as subject,
-             t.name as teacher_name
-      FROM attendance_records ar
-      JOIN attendance_sessions s ON ar.session_id = s.id
-      LEFT JOIN subjects sub ON s.subject_id = sub.id
-      JOIN teachers t ON s.teacher_id = t.id
-      WHERE ar.student_id = ?
-      ORDER BY ar.marked_at DESC
+      SELECT a.marked_at, q.subject, t.first_name as teacher_fname, t.last_name as teacher_lname
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      JOIN users t ON q.teacher_id = t.id
+      WHERE a.student_id = ?
+      ORDER BY a.marked_at DESC
     `, [req.session.userId]);
     res.json(result.rows);
   } catch (err) {
@@ -830,28 +583,21 @@ app.get('/my-attendance', async (req, res) => {
   }
 });
 
-// Student session history and attendance details - ONLY show sessions from classes the student is enrolled in
+// Student session history and attendance details
 app.get('/my-sessions', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   try {
-    // SECURITY FIX: Only show sessions from classes where the student has attended at least one lecture
-    // Without a proper class enrollment system, this prevents exposing all college schedules
     const result = await db.execute(`
-      SELECT DISTINCT q.id as code, q.subject, q.created_at, q.expires_at,
+      SELECT q.id as code, q.subject, q.created_at, q.expires_at,
              CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as present,
              u.first_name as teacher_fname, u.last_name as teacher_lname
       FROM qr_codes q
-      INNER JOIN users u ON q.teacher_id = u.id
       LEFT JOIN attendance a ON q.id = a.qr_id AND a.student_id = ?
-      WHERE q.teacher_id IN (
-        SELECT DISTINCT q2.teacher_id FROM qr_codes q2
-        INNER JOIN attendance a2 ON q2.id = a2.qr_id
-        WHERE a2.student_id = ?
-      )
+      LEFT JOIN users u ON q.teacher_id = u.id
       ORDER BY q.created_at DESC
-    `, [req.session.userId, req.session.userId]);
+    `, [req.session.userId]);
     res.json(result.rows);
   } catch (err) {
     console.error('My sessions error:', err);
@@ -1182,100 +928,6 @@ app.post('/delete-attendance', async (req, res) => {
   }
 });
 
-// Database backup endpoint
-app.post('/backup-database', async (req, res) => {
-  if (!req.session.userId || req.session.role !== 'teacher') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
-  try {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const backupFileName = `attendance_backup_${timestamp}.sql`;
-
-    // Export all tables data
-    const tables = ['students', 'teachers', 'subjects', 'attendance_sessions', 'attendance_records', 'audit_logs'];
-    let backupSQL = `-- Attendance System Database Backup\n-- Generated on ${new Date().toISOString()}\n\n`;
-
-    for (const table of tables) {
-      const result = await db.execute(`SELECT * FROM ${table}`);
-      if (result.rows.length > 0) {
-        backupSQL += `-- Table: ${table}\n`;
-        result.rows.forEach(row => {
-          const columns = Object.keys(row).join(', ');
-          const values = Object.values(row).map(val =>
-            val === null ? 'NULL' : `'${String(val).replace(/'/g, "''")}'`
-          ).join(', ');
-          backupSQL += `INSERT INTO ${table} (${columns}) VALUES (${values});\n`;
-        });
-        backupSQL += '\n';
-      }
-    }
-
-    // Log backup creation
-    await logAudit(req.session.userId, 'teacher', 'DATABASE_BACKUP',
-      `Created database backup: ${backupFileName}`, req);
-
-    res.setHeader('Content-Type', 'application/sql');
-    res.setHeader('Content-Disposition', `attachment; filename="${backupFileName}"`);
-    res.send(backupSQL);
-
-  } catch (error) {
-    console.error('Backup error:', error);
-    res.status(500).json({ error: 'Failed to create backup' });
-  }
-});
-
-// Automated daily backup (can be called by cron)
-app.post('/auto-backup', async (req, res) => {
-  // This endpoint can be secured with API key for automated backups
-  const apiKey = req.headers['x-api-key'];
-  if (apiKey !== process.env.BACKUP_API_KEY) {
-    return res.status(403).json({ error: 'Invalid API key' });
-  }
-
-  try {
-    const fs = require('fs').promises;
-    const path = require('path');
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const backupFileName = `attendance_backup_${timestamp}.sql`;
-    const backupDir = path.join(__dirname, 'backups');
-
-    // Ensure backup directory exists
-    await fs.mkdir(backupDir, { recursive: true });
-
-    // Create backup SQL
-    const tables = ['students', 'teachers', 'subjects', 'attendance_sessions', 'attendance_records', 'audit_logs'];
-    let backupSQL = `-- Attendance System Database Backup\n-- Generated on ${new Date().toISOString()}\n\n`;
-
-    for (const table of tables) {
-      const result = await db.execute(`SELECT * FROM ${table}`);
-      if (result.rows.length > 0) {
-        backupSQL += `-- Table: ${table}\n`;
-        result.rows.forEach(row => {
-          const columns = Object.keys(row).join(', ');
-          const values = Object.values(row).map(val =>
-            val === null ? 'NULL' : `'${String(val).replace(/'/g, "''")}'`
-          ).join(', ');
-          backupSQL += `INSERT INTO ${table} (${columns}) VALUES (${values});\n`;
-        });
-        backupSQL += '\n';
-      }
-    }
-
-    // Save to file
-    const backupPath = path.join(backupDir, backupFileName);
-    await fs.writeFile(backupPath, backupSQL);
-
-    console.log(`Automated backup created: ${backupPath}`);
-    res.json({ success: true, backupFile: backupFileName });
-
-  } catch (error) {
-    console.error('Auto backup error:', error);
-    res.status(500).json({ error: 'Failed to create automated backup' });
-  }
-});
-
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -1286,9 +938,6 @@ app.use((err, req, res, next) => {
 });
 
 (async () => {
-  // Initialize database
-  await initDB();
-  
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
