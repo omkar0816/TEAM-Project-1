@@ -147,6 +147,16 @@ app.get('/', (req, res) => {
   }
 });
 
+app.get('/teacher', (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'teacher.html'));
+});
+
+app.get('/student', (req, res) => {
+  if (!req.session.userId || req.session.role !== 'student') return res.redirect('/');
+  res.sendFile(path.join(__dirname, 'student.html'));
+});
+
 // Login
 app.post('/login', loginLimiter, async (req, res) => {
   try {
@@ -162,16 +172,14 @@ app.post('/login', loginLimiter, async (req, res) => {
     let user = null;
     let userType = null;
 
-    const allTeachers = await db.execute('SELECT * FROM teachers');
-    const teacherResult = { rows: allTeachers.rows.filter(t => t.email === email) };
+    const teacherResult = await db.execute('SELECT * FROM teachers WHERE email = ?', [email]);
     
     if (teacherResult.rows.length > 0) {
       user = teacherResult.rows[0];
       userType = 'teacher';
     } else {
       // Check students table
-      const allStudents = await db.execute('SELECT * FROM students');
-      const studentResult = { rows: allStudents.rows.filter(s => s.email === email) };
+      const studentResult = await db.execute('SELECT * FROM students WHERE email = ?', [email]);
       
       if (studentResult.rows.length > 0) {
         user = studentResult.rows[0];
@@ -303,7 +311,7 @@ app.post('/signup', async (req, res) => {
 // Change password route
 app.post('/change-password', async (req, res) => {
   try {
-    if (!req.session.userId || req.session.userType !== 'teacher') {
+    if (!req.session.userId || req.session.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
@@ -394,7 +402,7 @@ app.get('/profile', async (req, res) => {
 
 // Generate attendance session (for teachers)
 app.post('/generate-session', async (req, res) => {
-  if (!req.session.userId || req.session.userType !== 'teacher') {
+  if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -448,7 +456,7 @@ app.post('/mark-attendance', async (req, res) => {
     return res.json({ success: false, message: 'Invalid session ID' });
   }
 
-  if (!req.session.userId || req.session.userType !== 'student') {
+  if (!req.session.userId || req.session.role !== 'student') {
     return res.json({ success: false, message: 'Please log in as a student first' });
   }
 
@@ -570,7 +578,7 @@ app.post('/mark-attendance-post', attendanceLimiter, async (req, res) => {
 
 // Get all sessions for teacher
 app.get('/sessions', async (req, res) => {
-  if (!req.session.userId || req.session.userType !== 'teacher') {
+  if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -593,7 +601,7 @@ app.get('/sessions', async (req, res) => {
 
 // Get attendance for a specific session
 app.get('/session-attendance', async (req, res) => {
-  if (!req.session.userId || req.session.userType !== 'teacher') {
+  if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -670,7 +678,7 @@ app.get('/live-count', async (req, res) => {
 
 // Teacher dashboard analytics
 app.get('/teacher-analytics', async (req, res) => {
-  if (!req.session.userId || req.session.userType !== 'teacher') {
+  if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -762,7 +770,7 @@ app.get('/teacher-analytics', async (req, res) => {
 
 // Get attendance for teacher dashboard
 app.get('/attendance', async (req, res) => {
-  if (!req.session.userId || req.session.userType !== 'teacher') {
+  if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -788,7 +796,7 @@ app.get('/attendance', async (req, res) => {
 
 // Get attendance for student
 app.get('/my-attendance', async (req, res) => {
-  if (!req.session.userId || req.session.userType !== 'student') {
+  if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
   try {
@@ -1163,7 +1171,7 @@ app.post('/delete-attendance', async (req, res) => {
 
 // Database backup endpoint
 app.post('/backup-database', async (req, res) => {
-  if (!req.session.userId || req.session.userType !== 'teacher') {
+  if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 

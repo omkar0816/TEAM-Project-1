@@ -854,7 +854,7 @@
     let prn = '';
 
     if (!email || !/\S+@\S+\.\S+/.test(email)) { setError('fieldLoginEmail', true); ok = false; }
-    if (!pw) { setError('fieldLoginPw', true); ok = false; }
+    if (!pw && currentRole !== 'student') { setError('fieldLoginPw', true); ok = false; }
     
     // For students, PRN is required
     if (currentRole === 'student') {
@@ -863,6 +863,9 @@
     }
 
     if (ok) {
+      if (currentRole === 'student' && !pw) {
+        pw = prn;
+      }
       const body = { email, password: pw };
       if (currentRole === 'student') {
         body.prn = prn;
@@ -890,8 +893,8 @@
           data.message = 'Login request failed';
         }
         if (data.success) {
-          showToast(`✓ Logged in as ${data.role}!`);
-          setTimeout(() => window.location.href = data.role === 'teacher' ? 'teacher.html' : 'student.html', 1000);
+          showToast(`✓ Logged in as ${data.userType}!`);
+          setTimeout(() => window.location.href = data.userType === 'teacher' ? 'teacher.html' : 'student.html', 1000);
         } else {
           showToast('Login failed: ' + data.message);
         }

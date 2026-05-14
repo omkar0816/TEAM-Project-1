@@ -54,6 +54,21 @@ class TursoSessionStore extends session.Store {
     }
   }
 
+  async touch(sid, session, cb) {
+    try {
+      const expires = session.cookie?.expires
+        ? new Date(session.cookie.expires).getTime()
+        : Date.now() + 30 * 60 * 1000;
+      await this.db.execute(
+        'UPDATE sessions SET expires = ? WHERE sid = ?',
+        [expires, sid]
+      );
+      cb(null);
+    } catch (err) {
+      cb(err);
+    }
+  }
+
   async destroy(sid, cb) {
     try {
       await this.db.execute('DELETE FROM sessions WHERE sid = ?', [sid]);
