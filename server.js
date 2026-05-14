@@ -5,8 +5,8 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('./database');
-const TursoSessionStore = require('./sessionStore');
+const { db } = require('./src/models/database');
+const TursoSessionStore = require('./src/services/sessionStore');
 const ExcelJS = require('exceljs');
 
 const app = express();
