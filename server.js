@@ -4,16 +4,24 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
-const { db } = require('./database');
-const TursoSessionStore = require('./sessionStore');
+const { db } = require('./src/models/database');
+const TursoSessionStore = require('./src/services/sessionStore');
 const ExcelJS = require('exceljs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
-const secureCookies = process.env.SESSION_COOKIE_SECURE === 'true';
-const trustProxy = process.env.TRUST_PROXY === 'true';
+// In production (Render, Railway, etc.) cookies must be secure and proxy must be trusted.
+// Default secure to true in production so the session cookie is always sent over HTTPS.
+const secureCookies = process.env.SESSION_COOKIE_SECURE
+  ? process.env.SESSION_COOKIE_SECURE === 'true'
+  : isProduction;
+// Default trustProxy to true in production; cloud platforms always sit behind a reverse proxy.
+const trustProxy = process.env.TRUST_PROXY
+  ? process.env.TRUST_PROXY === 'true'
+  : isProduction;
 
 // Utility functions
 function validateInput(input, type, maxLength = 255) {
@@ -84,7 +92,10 @@ app.use(session({
   cookie: {
     secure: secureCookies,
     httpOnly: true,
-    sameSite: 'lax',
+    // 'lax' blocks cookies on QR code scans from a camera app (cross-site GET navigations
+    // that are not top-level, or POST fetches). Use 'none' in production (requires secure:true)
+    // so the session cookie is always included. Fall back to 'lax' in local dev (HTTP).
+    sameSite: secureCookies ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
@@ -134,56 +145,46 @@ app.post('/login', async (req, res) => {
   const prn = req.body.prn ? req.body.prn.trim() : '';
   const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
   const password = req.body.password ? req.body.password.trim() : '';
- 
-  
+
   try {
     if (role === 'student') {
-      // Student login: email + PRN (no password)
       if (!email) {
         return res.json({ success: false, message: 'Email is required for student login' });
       }
       if (!prn) {
         return res.json({ success: false, message: 'PRN is required for student login' });
       }
-      
-      // Validate PRN exists in personal_info table and email matches
-      const prnCheck = await db.execute('SELECT EMAIL FROM personal_info WHERE PRN = ?', [prn]);
-      
-      if (prnCheck.rows.length === 0) {
-        return res.json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
-      }
-      
-      if (prnCheck.rows[0].EMAIL.toLowerCase() !== email) {
-        return res.json({ success: false, message: 'PRN and email do not match our records.' });
-      }
-      
-      // Find user by email and PRN
-      const result = await db.execute('SELECT * FROM users WHERE email = ? AND PRN = ? AND role = ?', [email, prn, 'student']);
-      const user = result.rows[0];
-      
-      if (!user) {
+
+      const result = await db.execute('SELECT * FROM students WHERE email = ? AND prn = ?', [email, prn]);
+      const student = result.rows[0];
+
+      if (!student) {
         return res.json({ success: false, message: 'Student account not found with this email and PRN combination. Please sign up first.' });
       }
-      
-      req.session.userId = user.id;
-      req.session.role = user.role;
-      res.json({ success: true, role: user.role });
+
+      req.session.userId = student.id;
+      req.session.role = 'student';
+      res.json({ success: true, role: 'student' });
     } else if (role === 'teacher') {
-      // Teacher login: email + password
       if (!email || !password) {
         return res.json({ success: false, message: 'Email and password are required for teacher login' });
       }
-      
-      const result = await db.execute('SELECT * FROM users WHERE email = ? AND password = ? AND role = ?', [email, password, 'teacher']);
-      const user = result.rows[0];
-      
-      if (user) {
-        req.session.userId = user.id;
-        req.session.role = user.role;
-        res.json({ success: true, role: user.role });
-      } else {
-        res.json({ success: false, message: 'Invalid email or password for teacher account' });
+
+      const result = await db.execute('SELECT * FROM teachers WHERE email = ?', [email]);
+      const teacher = result.rows[0];
+
+      if (!teacher) {
+        return res.json({ success: false, message: 'Invalid email or password for teacher account' });
       }
+
+      const passwordMatches = await bcrypt.compare(password, teacher.password_hash || '');
+      if (!passwordMatches) {
+        return res.json({ success: false, message: 'Invalid email or password for teacher account' });
+      }
+
+      req.session.userId = teacher.id;
+      req.session.role = 'teacher';
+      res.json({ success: true, role: 'teacher' });
     } else {
       res.json({ success: false, message: 'Invalid role specified' });
     }
@@ -203,56 +204,69 @@ app.post('/signup', async (req, res) => {
   const year = req.body.year ? req.body.year.trim() : '';
   const department = req.body.department ? req.body.department.trim() : '';
   const empId = req.body.empId ? req.body.empId.trim() : '';
-  const subject = '';
   const password = req.body.password ? req.body.password.trim() : '';
 
   if (!role || !email) {
-    return res.status(400).json({ success: false, message: 'Role, email are required' });
+    return res.status(400).json({ success: false, message: 'Role and email are required' });
   }
   if (!['student', 'teacher'].includes(role)) {
     return res.status(400).json({ success: false, message: 'Invalid role' });
   }
 
   try {
-    // For students, validate PRN exists in personal_info table and email matches
+    const fullName = `${firstName} ${lastName}`.trim();
+
     if (role === 'student') {
       if (!prn) {
         return res.status(400).json({ success: false, message: 'PRN is required for students' });
       }
-      
-      // Check if PRN exists in personal_info table and email matches
-      const prnCheck = await db.execute('SELECT EMAIL FROM personal_info WHERE PRN = ?', [prn]);
-      
-      if (prnCheck.rows.length === 0) {
-        return res.status(400).json({ success: false, message: 'Invalid PRN. Please enter a valid PRN from your enrollment records.' });
+      if (!year) {
+        return res.status(400).json({ success: false, message: 'Year is required for students' });
       }
-      
-      if (prnCheck.rows[0].EMAIL.toLowerCase() !== email.toLowerCase()) {
-        return res.status(400).json({ success: false, message: 'PRN and email do not match our records.' });
+      if (!department) {
+        return res.status(400).json({ success: false, message: 'Department is required for students' });
       }
-      
-      // Insert with foreign key references to personal_info
-      await db.execute('INSERT INTO users ( first_name, last_name, PRN, email, role, year, department) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [firstName, lastName, prn, email, role, year, department]);
+
+      const rollNo = /^\\d+$/.test(prn) ? parseInt(prn, 10) : Math.floor(Date.now() / 1000);
+      const className = year;
+
+      await db.execute(
+        'INSERT INTO students (prn, roll_no, name, email, class, department, year) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [prn, rollNo, fullName || 'Unknown Student', email, className, department, year]
+      );
     } else {
-      // For teachers, no PRN required
-      await db.execute('INSERT INTO users ( first_name, last_name,role,email,password ,emp_id, subject) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [firstName, lastName, role, email, password, empId, subject]);
+      if (!empId) {
+        return res.status(400).json({ success: false, message: 'Employee ID is required for teachers' });
+      }
+      if (!password || password.length < 8) {
+        return res.status(400).json({ success: false, message: 'Password is required and must be at least 8 characters for teacher accounts' });
+      }
+      if (!department) {
+        return res.status(400).json({ success: false, message: 'Department is required for teachers' });
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      await db.execute(
+        'INSERT INTO teachers (emp_id, name, email, department, subject, password_hash) VALUES (?, ?, ?, ?, ?, ?)',
+        [empId, fullName || 'Teacher', email, department, '', passwordHash]
+      );
     }
-    
+
     res.json({ success: true });
   } catch (err) {
     console.error('Signup error:', err.message);
-    
+
     let message = 'Registration failed';
-    if (err.message && err.message.includes('UNIQUE constraint failed: users.email')) {
+    if (err.message && err.message.includes('UNIQUE constraint failed: students.email')) {
       message = 'Email already registered. Please log in instead.';
-    } else if (err.message && err.message.includes('UNIQUE constraint failed: users.PRN')) {
+    } else if (err.message && err.message.includes('UNIQUE constraint failed: students.prn')) {
       message = 'This PRN is already registered.';
-    } else if (err.message && err.message.includes('FOREIGN KEY constraint failed')) {
-      message = 'Invalid PRN. Please enter a valid PRN from your enrollment records.';
+    } else if (err.message && err.message.includes('UNIQUE constraint failed: teachers.email')) {
+      message = 'Email already registered. Please log in instead.';
+    } else if (err.message && err.message.includes('UNIQUE constraint failed: teachers.emp_id')) {
+      message = 'This employee ID is already registered.';
     }
-    
+
     res.status(400).json({ success: false, message });
   }
 });
@@ -269,16 +283,32 @@ app.get('/check-session', (req, res) => {
 });
 
 app.get('/profile', async (req, res) => {
-  if (!req.session.userId) {
+  if (!req.session.userId || !req.session.role) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
+
   try {
-    const result = await db.execute('SELECT id, email, role, first_name, last_name, department, subject, emp_id FROM users WHERE id = ?', [req.session.userId]);
+    let result;
+    if (req.session.role === 'student') {
+      result = await db.execute('SELECT id, prn, roll_no, name, email, class, department, year, created_at FROM students WHERE id = ?', [req.session.userId]);
+    } else {
+      result = await db.execute('SELECT id, emp_id, name, email, department, subject, created_at FROM teachers WHERE id = ?', [req.session.userId]);
+    }
+
     const user = result.rows[0];
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json(user);
+
+    const [firstName, ...rest] = user.name ? user.name.split(' ') : ['', ''];
+    const lastName = rest.join(' ');
+    res.json({
+      ...user,
+      role: req.session.role,
+      first_name: firstName,
+      last_name: lastName,
+      name: user.name
+    });
   } catch (err) {
     console.error('Profile error:', err);
     res.status(500).json({ error: 'Database error' });
@@ -293,7 +323,7 @@ app.post('/generate-code', async (req, res) => {
 
   const { subject } = req.body;
   const expiresAt = Math.floor(Date.now() / 1000) + 50; // 50 seconds in epoch seconds
-  const teacherResult = await db.execute('SELECT subject FROM users WHERE id = ?', [req.session.userId]);
+  const teacherResult = await db.execute('SELECT subject FROM teachers WHERE id = ?', [req.session.userId]);
   const teacherInfo = teacherResult.rows[0] || {};
   const sessionSubject = subject || teacherInfo.subject || 'Lecture';
   const tryInsertCode = async (attempt = 0) => {
@@ -333,29 +363,22 @@ app.get('/mark-attendance', async (req, res) => {
     }
     // If student logged in, mark attendance
     if (req.session.userId && req.session.role === 'student') {
+      // Prevent duplicate attendance
+      const existing = await db.execute(
+        'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
+        [req.session.userId, code]
+      );
+      if (existing.rows[0]) {
+        return res.send('Attendance already marked for this session.');
+      }
       await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
-      res.send('Attendance marked successfully!');
+      // Redirect back to the student dashboard with a success flag
+      return res.redirect('/?attendance=marked');
     } else {
-      // If not logged in, redirect to login or show button
-      res.send(`
-        <h1>Mark Attendance</h1>
-        <p>You need to be logged in as a student.</p>
-        <a href="/">Login</a>
-        <br><br>
-        <button onclick="mark()">Mark Attendance</button>
-        <script>
-          function mark() {
-            fetch('/mark-attendance-post', {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: '${code}' })
-            })
-              .then(res => res.text())
-              .then(msg => alert(msg));
-          }
-        </script>
-      `);
+      // Not logged in — redirect to login page with the code as a query param
+      // so after login the student dashboard can auto-submit it.
+      const safeCode = encodeURIComponent(code);
+      return res.redirect(`/?redirect_code=${safeCode}`);
     }
   } catch (err) {
     console.error('Mark attendance error:', err);
@@ -378,7 +401,7 @@ app.post('/mark-attendance-post', async (req, res) => {
       return res.send('Code expired or invalid');
     }
     // Validate student exists and is not already marked for this code
-    const studentResult = await db.execute('SELECT id FROM users WHERE id = ? AND role = \'student\'', [studentId]);
+    const studentResult = await db.execute('SELECT id FROM students WHERE id = ?', [studentId]);
     if (!studentResult.rows[0]) {
       return res.status(403).send('Unauthorized or student not found');
     }
@@ -440,9 +463,9 @@ app.get('/session-attendance', async (req, res) => {
 
     // Get all attendance for this session
     const attendanceResult = await db.execute(`
-      SELECT u.first_name, u.last_name, u.prn, u.email, a.marked_at
+      SELECT u.name as student_name, u.prn, u.email, a.marked_at
       FROM attendance a
-      JOIN users u ON a.student_id = u.id
+      JOIN students u ON a.student_id = u.id
       WHERE a.qr_id = ?
       ORDER BY a.marked_at ASC
     `, [code]);
@@ -472,9 +495,9 @@ app.get('/live-count', async (req, res) => {
     }
 
     const attendanceResult = await db.execute(`
-      SELECT u.first_name, u.last_name, u.prn, a.marked_at
+      SELECT u.name as student_name, u.prn, a.marked_at
       FROM attendance a
-      JOIN users u ON a.student_id = u.id
+      JOIN students u ON a.student_id = u.id
       WHERE a.qr_id = ?
       ORDER BY a.marked_at ASC
     `, [code]);
@@ -547,10 +570,10 @@ app.get('/attendance', async (req, res) => {
   try {
     const result = await db.execute(`
       SELECT a.marked_at, q.subject, q.id as session_id,
-             u.first_name, u.last_name, u.prn, u.email
+             u.name as student_name, u.prn, u.email
       FROM attendance a
       JOIN qr_codes q ON a.qr_id = q.id
-      JOIN users u ON a.student_id = u.id
+      JOIN students u ON a.student_id = u.id
       WHERE q.teacher_id = ?
       ORDER BY a.marked_at DESC
     `, [teacherId]);
@@ -568,10 +591,10 @@ app.get('/my-attendance', async (req, res) => {
   }
   try {
     const result = await db.execute(`
-      SELECT a.marked_at, q.subject, t.first_name as teacher_fname, t.last_name as teacher_lname
+      SELECT a.marked_at, q.subject, t.name as teacher_name
       FROM attendance a
       JOIN qr_codes q ON a.qr_id = q.id
-      JOIN users t ON q.teacher_id = t.id
+      JOIN teachers t ON q.teacher_id = t.id
       WHERE a.student_id = ?
       ORDER BY a.marked_at DESC
     `, [req.session.userId]);
@@ -591,10 +614,10 @@ app.get('/my-sessions', async (req, res) => {
     const result = await db.execute(`
       SELECT q.id as code, q.subject, q.created_at, q.expires_at,
              CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as present,
-             u.first_name as teacher_fname, u.last_name as teacher_lname
+             t.name as teacher_name
       FROM qr_codes q
       LEFT JOIN attendance a ON q.id = a.qr_id AND a.student_id = ?
-      LEFT JOIN users u ON q.teacher_id = u.id
+      LEFT JOIN teachers t ON q.teacher_id = t.id
       ORDER BY q.created_at DESC
     `, [req.session.userId]);
     res.json(result.rows);
@@ -716,12 +739,12 @@ app.get('/download/monthly-report', async (req, res) => {
   }
   try {
     const teacherResult = await db.execute({
-      sql: `SELECT first_name, last_name, subject FROM users WHERE id = ?`,
+      sql: `SELECT name, subject FROM teachers WHERE id = ?`,
       args: [req.session.userId]
     });
     const teacher = teacherResult.rows[0] || {};
     const students = await db.execute({
-      sql: `SELECT id, first_name, last_name, email FROM users WHERE role = 'student' ORDER BY first_name, last_name`,
+      sql: `SELECT id, name, email FROM students ORDER BY name`,
       args: []
     });
     const sessionsResult = await db.execute({
@@ -750,7 +773,7 @@ app.get('/download/monthly-report', async (req, res) => {
         attended.rows.forEach(row => attendedCodes.add(row.qr_id));
       }
       const row = [
-        `${student.first_name || ''} ${student.last_name || ''}`.trim(),
+        `${student.name || ''}`.trim(),
         student.email,
         ...sessionCodes.map(code => attendedCodes.has(code) ? '✅' : '❌'),
         sessionCodes.length > 0 ? ((attendedCodes.size / sessionCodes.length) * 100).toFixed(1) + '%' : '0%'
@@ -784,19 +807,19 @@ app.get('/download/lecture/:code', async (req, res) => {
     }
 
     const attendedResult = await db.execute({
-      sql: `SELECT u.first_name, u.last_name, u.email FROM attendance a JOIN users u ON a.student_id = u.id WHERE a.qr_id = ?`,
+      sql: `SELECT u.name, u.email FROM attendance a JOIN students u ON a.student_id = u.id WHERE a.qr_id = ?`,
       args: [code]
     });
     const allStudents = await db.execute({
-      sql: `SELECT first_name, last_name, email FROM users WHERE role = 'student' ORDER BY first_name, last_name`,
+      sql: `SELECT name, email FROM students ORDER BY name`,
       args: []
     });
 
     const teacherProfile = await db.execute({
-      sql: `SELECT first_name, last_name FROM users WHERE id = ?`,
+      sql: `SELECT name FROM teachers WHERE id = ?`,
       args: [req.session.userId]
     });
-    const teacherName = teacherProfile.rows[0] ? `${teacherProfile.rows[0].first_name || ''} ${teacherProfile.rows[0].last_name || ''}`.trim() : 'Teacher';
+    const teacherName = teacherProfile.rows[0] ? `${teacherProfile.rows[0].name || ''}`.trim() : 'Teacher';
     const attendedEmails = new Set(attendedResult.rows.map(r => r.email));
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Lecture Attendance');
@@ -832,8 +855,8 @@ app.get('/student-attendance', async (req, res) => {
   }
   try {
     const userResult = await db.execute(
-      'SELECT id, first_name, last_name, email, prn FROM users WHERE role = ? AND (email = ? OR prn = ?)',
-      ['student', email || '', prn || '']
+      'SELECT id, name, email, prn FROM students WHERE email = ? OR prn = ?',
+      [email || '', prn || '']
     );
     const user = userResult.rows[0];
     if (!user) {
@@ -872,8 +895,8 @@ app.post('/add-attendance', async (req, res) => {
   try {
     // Find student
     const userResult = await db.execute(
-      'SELECT id FROM users WHERE role = ? AND (email = ? OR prn = ?)',
-      ['student', email || '', prn || '']
+      'SELECT id FROM students WHERE email = ? OR prn = ?',
+      [email || '', prn || '']
     );
     const student = userResult.rows[0];
     if (!student) {
