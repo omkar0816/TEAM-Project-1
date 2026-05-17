@@ -343,20 +343,37 @@ app.get('/mark-attendance', async (req, res) => {
   if (!code) {
     return res.status(400).send('Invalid code');
   }
+
   try {
     const now = Math.floor(Date.now() / 1000);
-    // Check if code is valid
-    const result = await db.execute('SELECT * FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
+    const result = await db.execute(
+      'SELECT * FROM qr_codes WHERE id = ? AND expires_at > ?',
+      [code, now]
+    );
     const codeRow = result.rows[0];
+
     if (!codeRow) {
-      return res.send('Code expired or invalid');
+      return res.status(410).send('Code expired or invalid'); // 410 Gone
     }
-    // If student logged in, mark attendance
+
     if (req.session.userId && req.session.role === 'student') {
-      await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
-      res.send('Attendance marked successfully!');
+      // Check for duplicate attendance
+      const existing = await db.execute(
+        'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
+        [req.session.userId, code]
+      );
+      if (existing.rows[0]) {
+        return res.status(409).send('Attendance already marked');
+      }
+
+      await db.execute(
+        'INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)',
+        [req.session.userId, code]
+      );
+      return res.send('Attendance marked successfully!');
     } else {
-      // If not logged in, redirect to login or show button
+      // Sanitize code before embedding in HTML to prevent XSS
+      const safeCode = encodeURIComponent(code);
       res.send(`
         <h1>Mark Attendance</h1>
         <p>You need to be logged in as a student.</p>
@@ -369,7 +386,7 @@ app.get('/mark-attendance', async (req, res) => {
               method: 'POST',
               credentials: 'same-origin',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: '${code}' })
+              body: JSON.stringify({ code: decodeURIComponent('${safeCode}') })
             })
               .then(res => res.text())
               .then(msg => alert(msg));
@@ -385,18 +402,48 @@ app.get('/mark-attendance', async (req, res) => {
 
 // POST version for AJAX
 app.post('/mark-attendance-post', async (req, res) => {
-  const { code } = req.body;
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).send('Unauthorized');
   }
+
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).send('Invalid code');
+  }
+
   try {
     const studentId = req.session.userId;
     const now = Math.floor(Date.now() / 1000);
+
     // Validate code exists and is not expired
-    const codeResult = await db.execute('SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
+    const codeResult = await db.execute(
+      'SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?',
+      [code, now]
+    );
     if (!codeResult.rows[0]) {
-      return res.send('Code expired or invalid');
+      return res.status(410).send('Code expired or invalid'); // 410 Gone
     }
+
+    // Check for duplicate attendance
+    const existing = await db.execute(
+      'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
+      [studentId, code]
+    );
+    if (existing.rows[0]) {
+      return res.status(409).send('Attendance already marked');
+    }
+
+    await db.execute(
+      'INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)',
+      [studentId, code]
+    );
+    return res.send('Attendance marked successfully!');
+
+  } catch (err) {
+    console.error('Mark attendance POST error:', err);
+    res.status(500).send('Error marking attendance');
+  }
+});
     // Validate student exists and is not already marked for this code
     const studentResult = await db.execute('SELECT id FROM students WHERE id = ?', [studentId]);
     if (!studentResult.rows[0]) {
