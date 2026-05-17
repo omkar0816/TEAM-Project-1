@@ -9,11 +9,29 @@ const db = createClient({
 // Initialize database tables with clean schema
 async function initDB() {
   try {
+    // QR Codes table
+    await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (
+  id TEXT PRIMARY KEY,
+  teacher_id INTEGER NOT NULL,
+  subject TEXT,
+  expires_at INTEGER NOT NULL,
+  FOREIGN KEY (teacher_id) REFERENCES teachers(id)
+)`);
+// Attendance table (legacy, can be removed later)
+await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  PRN TEXT NOT NULL,
+  qr_id TEXT NOT NULL,
+  marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(PRN, qr_id),
+  FOREIGN KEY (PRN) REFERENCES students(prn),
+  FOREIGN KEY (qr_id) REFERENCES qr_codes(id)
+)`);
+
     // Students table
     await db.execute(`CREATE TABLE IF NOT EXISTS students (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       prn TEXT UNIQUE NOT NULL,
-      roll_no INTEGER UNIQUE NOT NULL,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       class TEXT NOT NULL,
@@ -49,35 +67,15 @@ async function initDB() {
     // Attendance sessions table
     await db.execute(`CREATE TABLE IF NOT EXISTS attendance_sessions (
       id TEXT PRIMARY KEY,
-      teacher_id INTEGER NOT NULL,
-      subject_id INTEGER NOT NULL,
-      class TEXT NOT NULL,
-      department TEXT NOT NULL,
-      semester TEXT NOT NULL,
+      code INTEGER NOT NULL UNIQUE,
+      created_by INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       expires_at DATETIME NOT NULL,
-      location_lat REAL,
-      location_lng REAL,
-      device_fingerprint TEXT,
-      FOREIGN KEY (teacher_id) REFERENCES teachers(id),
-      FOREIGN KEY (subject_id) REFERENCES subjects(id)
+      FOREIGN KEY (code) REFERENCES qr_codes(id),
+      FOREIGN KEY (created_by) REFERENCES teachers(id)
     )`);
 
-    // Attendance records table
-    await db.execute(`CREATE TABLE IF NOT EXISTS attendance_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_id INTEGER NOT NULL,
-      session_id TEXT NOT NULL,
-      marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      device_fingerprint TEXT,
-      ip_address TEXT,
-      user_agent TEXT,
-      location_lat REAL,
-      location_lng REAL,
-      FOREIGN KEY (student_id) REFERENCES students(id),
-      FOREIGN KEY (session_id) REFERENCES attendance_sessions(id),
-      UNIQUE(student_id, session_id)
-    )`);
+    
 
     // Audit logs table
     await db.execute(`CREATE TABLE IF NOT EXISTS audit_logs (
@@ -163,8 +161,8 @@ async function initDB() {
   }
 }
 
-// (async () => {
-//   await initDB();
-// })().catch(console.error);
+ (async () => {
+  await initDB();
+ })().catch(console.error);
 
 module.exports = { db, initDB };

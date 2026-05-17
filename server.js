@@ -353,32 +353,43 @@ app.get('/mark-attendance', async (req, res) => {
   if (!code) {
     return res.status(400).send('Invalid code');
   }
+
   try {
     const now = Math.floor(Date.now() / 1000);
-    // Check if code is valid
-    const result = await db.execute('SELECT * FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
+    const result = await db.execute(
+      'SELECT * FROM qr_codes WHERE id = ? AND expires_at > ?',
+      [code, now]
+    );
     const codeRow = result.rows[0];
+
     if (!codeRow) {
-      return res.send('Code expired or invalid');
+      return res.status(410).send('Code expired or invalid'); // 410 Gone
     }
-    // If student logged in, mark attendance
+
     if (req.session.userId && req.session.role === 'student') {
-      // Prevent duplicate attendance
-      const existing = await db.execute(
-        'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
-        [req.session.userId, code]
-      );
-      if (existing.rows[0]) {
-        return res.send('Attendance already marked for this session.');
-      }
       await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
-      // Redirect back to the student dashboard with a success flag
-      return res.redirect('/?attendance=marked');
+      res.send('Attendance marked successfully!');
     } else {
-      // Not logged in — redirect to login page with the code as a query param
-      // so after login the student dashboard can auto-submit it.
-      const safeCode = encodeURIComponent(code);
-      return res.redirect(`/?redirect_code=${safeCode}`);
+      // If not logged in, redirect to login or show button
+      res.send(`
+        <h1>Mark Attendance</h1>
+        <p>You need to be logged in as a student.</p>
+        <a href="/">Login</a>
+        <br><br>
+        <button onclick="mark()">Mark Attendance</button>
+        <script>
+          function mark() {
+            fetch('/mark-attendance-post', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: '${code}' })
+            })
+              .then(res => res.text())
+              .then(msg => alert(msg));
+          }
+        </script>
+      `);
     }
   } catch (err) {
     console.error('Mark attendance error:', err);
@@ -388,20 +399,29 @@ app.get('/mark-attendance', async (req, res) => {
 
 // POST version for AJAX
 app.post('/mark-attendance-post', async (req, res) => {
-  const { code } = req.body;
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).send('Unauthorized');
   }
+
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).send('Invalid code');
+  }
+
   try {
     const studentId = req.session.userId;
     const now = Math.floor(Date.now() / 1000);
+
     // Validate code exists and is not expired
-    const codeResult = await db.execute('SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
+    const codeResult = await db.execute(
+      'SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?',
+      [code, now]
+    );
     if (!codeResult.rows[0]) {
-      return res.send('Code expired or invalid');
+      return res.status(410).send('Code expired or invalid'); // 410 Gone
     }
     // Validate student exists and is not already marked for this code
-    const studentResult = await db.execute('SELECT id FROM students WHERE id = ?', [studentId]);
+    const studentResult = await db.execute('SELECT id FROM users WHERE id = ? AND role = \'student\'', [studentId]);
     if (!studentResult.rows[0]) {
       return res.status(403).send('Unauthorized or student not found');
     }
@@ -416,8 +436,8 @@ app.post('/mark-attendance-post', async (req, res) => {
       throw insertErr;
     }
   } catch (err) {
-    console.error('Mark attendance post error:', err);
-    res.status(500).send('Error: ' + (err.message || 'unknown'));
+    console.error('Mark attendance POST error:', err);
+    res.status(500).send('Error marking attendance');
   }
 });
 
