@@ -54,19 +54,81 @@
     }
 
     .btn-primary {
-      @apply px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all active:scale-95;
+      padding: 0.75rem 1rem;
+      background: #E8A020;
+      border: 1px solid rgba(232, 160, 32, 0.3);
+      color: #0B1F3A;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(232, 160, 32, 0.3);
+    }
+    
+    .btn-primary:hover {
+      background: #F5B940;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(232, 160, 32, 0.4);
+    }
+    
+    .btn-primary:active {
+      transform: scale(0.98);
     }
 
     .btn-secondary {
-      @apply px-3 py-2 bg-white/10 border border-white/20 hover:bg-white/15 text-white rounded-lg text-sm transition-all;
+      padding: 0.5rem 0.75rem;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(232, 160, 32, 0.5);
     }
 
     .card {
-      @apply bg-white/5 border border-white/10 backdrop-blur-xl rounded-xl p-4 sm:p-6;
+      background: rgba(18, 40, 68, 0.35);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.08);
+    }
+    
+    @media (min-width: 640px) {
+      .card {
+        padding: 1.5rem;
+      }
     }
 
     .input-field {
-      @apply w-full px-4 py-3 bg-white/8 border border-white/15 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:bg-white/10 transition-all text-base;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 0.5rem;
+      color: white;
+      font-size: 1rem;
+      transition: all 0.3s;
+    }
+    
+    .input-field:focus {
+      outline: none;
+      border-color: #E8A020;
+      background: rgba(232, 160, 32, 0.1);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     input::placeholder {
