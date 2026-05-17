@@ -353,7 +353,6 @@ app.get('/mark-attendance', async (req, res) => {
   if (!code) {
     return res.status(400).send('Invalid code');
   }
-
   try {
     const now = Math.floor(Date.now() / 1000);
     const result = await db.execute(
@@ -361,16 +360,36 @@ app.get('/mark-attendance', async (req, res) => {
       [code, now]
     );
     const codeRow = result.rows[0];
-
     if (!codeRow) {
-      return res.status(410).send('Code expired or invalid'); // 410 Gone
+      return res.status(410).send('Code expired or invalid');
     }
-
     if (req.session.userId && req.session.role === 'student') {
-      await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [req.session.userId, code]);
-      res.send('Attendance marked successfully!');
+      // Fetch student's PRN using session userId
+      const studentResult = await db.execute(
+        'SELECT prn FROM students WHERE id = ?',
+        [req.session.userId]
+      );
+      const student = studentResult.rows[0];
+      if (!student) {
+        return res.status(403).send('Student not found');
+      }
+      const prn = student.prn;
+
+      // Check for duplicate attendance using PRN
+      const existing = await db.execute(
+        'SELECT id FROM attendance WHERE PRN = ? AND qr_id = ?',
+        [prn, code]
+      );
+      if (existing.rows[0]) {
+        return res.status(409).send('Attendance already marked');
+      }
+      await db.execute(
+        'INSERT INTO attendance (PRN, qr_id) VALUES (?, ?)',
+        [prn, code]
+      );
+      return res.send('Attendance marked successfully!');
     } else {
-      // If not logged in, redirect to login or show button
+      const safeCode = encodeURIComponent(code);
       res.send(`
         <h1>Mark Attendance</h1>
         <p>You need to be logged in as a student.</p>
@@ -383,7 +402,7 @@ app.get('/mark-attendance', async (req, res) => {
               method: 'POST',
               credentials: 'same-origin',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: '${code}' })
+              body: JSON.stringify({ code: decodeURIComponent('${safeCode}') })
             })
               .then(res => res.text())
               .then(msg => alert(msg));
@@ -402,15 +421,23 @@ app.post('/mark-attendance-post', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).send('Unauthorized');
   }
-
   const { code } = req.body;
   if (!code) {
     return res.status(400).send('Invalid code');
   }
-
   try {
-    const studentId = req.session.userId;
     const now = Math.floor(Date.now() / 1000);
+
+    // Fetch student's PRN using session userId
+    const studentResult = await db.execute(
+      'SELECT prn FROM students WHERE id = ?',
+      [req.session.userId]
+    );
+    const student = studentResult.rows[0];
+    if (!student) {
+      return res.status(403).send('Student not found');
+    }
+    const prn = student.prn;
 
     // Validate code exists and is not expired
     const codeResult = await db.execute(
@@ -418,23 +445,23 @@ app.post('/mark-attendance-post', async (req, res) => {
       [code, now]
     );
     if (!codeResult.rows[0]) {
-      return res.status(410).send('Code expired or invalid'); // 410 Gone
+      return res.status(410).send('Code expired or invalid');
     }
-    // Validate student exists and is not already marked for this code
-    const studentResult = await db.execute('SELECT id FROM users WHERE id = ? AND role = \'student\'', [studentId]);
-    if (!studentResult.rows[0]) {
-      return res.status(403).send('Unauthorized or student not found');
+
+    // Check for duplicate using PRN
+    const existing = await db.execute(
+      'SELECT id FROM attendance WHERE PRN = ? AND qr_id = ?',
+      [prn, code]
+    );
+    if (existing.rows[0]) {
+      return res.status(409).send('Attendance already marked');
     }
-    // Insert attendance with proper error handling
-    try {
-      await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [studentId, code]);
-      res.send('Marked!');
-    } catch (insertErr) {
-      if (insertErr.message && insertErr.message.includes('UNIQUE constraint failed')) {
-        return res.send('Already marked attendance for this code.');
-      }
-      throw insertErr;
-    }
+
+    await db.execute(
+      'INSERT INTO attendance (PRN, qr_id) VALUES (?, ?)',
+      [prn, code]
+    );
+    return res.send('Attendance marked successfully!');
   } catch (err) {
     console.error('Mark attendance POST error:', err);
     res.status(500).send('Error marking attendance');
