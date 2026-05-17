@@ -595,11 +595,11 @@
         <h2 class="form-heading">Welcome back</h2>
         <p class="form-sub" id="loginSub">Log in to your student account</p>
 
-        <div class="field" id="fieldLoginEmail" style="display:none">
+        <div class="field" id="fieldLoginEmail" >
           <label>Email address</label>
           <div class="input-wrap">
             <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M1 5l7 5 7-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            <input type="email" placeholder="you@wadia.ac.in" id="loginEmail"/>
+            <input type="email" placeholder="name@123.in" id="loginEmail"/>
           </div>
           <span class="error-msg">Please enter a valid email address.</span>
         </div>
@@ -608,27 +608,11 @@
           <label>PRN number</label>
           <div class="input-wrap">
             <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h4M5 10.5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            <input type="text" placeholder="72XXXXXXXXXX" id="loginPrn"/>
+            <input type="text" placeholder="F25211XXXXXXX" id="loginPrn"/>
           </div>
           <span class="error-msg">Please enter your PRN.</span>
         </div>
-
-        <div class="field" id="fieldLoginPw" style="display:none">
-          <label>Password</label>
-          <div class="input-wrap">
-            <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            <input type="password" placeholder="Enter your password" id="loginPw"/>
-            <button class="pw-toggle" onclick="togglePw('loginPw', this)" type="button">
-              <svg viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="6" ry="4" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
-            </button>
-          </div>
-          <span class="error-msg">Password is required.</span>
-        </div>
-
-        <div class="helper-row">
-          <button class="link-btn">Forgot password?</button>
-        </div>
-
+        
         <button class="submit-btn" onclick="handleLogin()">
           Log in
           <span class="arrow">
@@ -671,7 +655,7 @@
           <label>College email</label>
           <div class="input-wrap">
             <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M1 5l7 5 7-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            <input type="email" placeholder="you@wadia.ac.in" id="signupEmail"/>
+            <input type="email" placeholder="name@123.ac.in" id="signupEmail"/>
           </div>
           <span class="error-msg">Enter a valid email.</span>
         </div>
@@ -683,7 +667,7 @@
               <label>PRN number</label>
               <div class="input-wrap">
                 <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h4M5 10.5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-                <input type="text" placeholder="72XXXXXXXXXX" id="signupPrn"/>
+                <input type="text" placeholder="F252XXXXXX" id="signupPrn"/>
               </div>
               <span class="error-msg">Required.</span>
             </div>
