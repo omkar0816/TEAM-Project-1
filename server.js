@@ -409,7 +409,6 @@ app.get('/mark-attendance', async (req, res) => {
   }
 });
 
-// ─── POST /mark-attendance-post ──────────────────────────────────────────────
 app.post('/mark-attendance-post', async (req, res) => {
   const { code } = req.body;
   if (!code) return res.status(400).send('Invalid code');
@@ -421,32 +420,28 @@ app.post('/mark-attendance-post', async (req, res) => {
   try {
     const studentId = req.session.userId;
 
-    // Confirm session userId belongs to a student (not a teacher)
     const studentCheck = await db.execute(
       'SELECT id FROM students WHERE id = ?',
       [studentId]
     );
     if (!studentCheck.rows[0]) {
-      return res.status(403).send('Not a student account — please log in as a student');
+      return res.status(403).send('Not a student account');
     }
 
     const now = Math.floor(Date.now() / 1000);
 
-    // Validate QR code is valid and not expired
     const codeResult = await db.execute(
       'SELECT id FROM qr_codes WHERE id = ? AND expires_at > ?',
       [code, now]
     );
     if (!codeResult.rows[0]) return res.status(410).send('Code expired or invalid');
 
-    // Check duplicate
     const existing = await db.execute(
       'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
       [studentId, code]
     );
     if (existing.rows[0]) return res.status(409).send('Attendance already marked');
 
-    // Insert using student_id (integer) and qr_id (text)
     await db.execute(
       'INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)',
       [studentId, code]
@@ -454,54 +449,9 @@ app.post('/mark-attendance-post', async (req, res) => {
     return res.send('Attendance marked successfully!');
 
   } catch (err) {
+    // DETAILED error sent back so you can see what's wrong
     console.error('Mark attendance POST error:', err);
-    res.status(500).send('Error marking attendance');
-  }
-});
-    // Get all attendance for this session
-    const attendanceResult = await db.execute(`
-      SELECT u.name as student_name, u.prn, u.email, a.marked_at
-      FROM attendance a
-      JOIN students u ON a.student_id = u.id
-      WHERE a.qr_id = ?
-      ORDER BY a.marked_at ASC
-    `, [code]);
-    res.json({
-      session: codeRow,
-      students: attendanceResult.rows
-    });
-  } catch (err) {
-    console.error('Session attendance error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Get live count and student list for active code
-app.get('/live-count', async (req, res) => {
-  const { code } = req.query;
-  if (!code) {
-    return res.status(400).json({ error: 'Code required' });
-  }
-
-  try {
-    const now = Math.floor(Date.now() / 1000);
-    const codeResult = await db.execute('SELECT id FROM qr_codes WHERE id = ? AND expires_at > ?', [code, now]);
-    const codeRow = codeResult.rows[0];
-    if (!codeRow) {
-      return res.json({ count: 0, students: [] });
-    }
-
-    const attendanceResult = await db.execute(`
-      SELECT u.name as student_name, u.prn, a.marked_at
-      FROM attendance a
-      JOIN students u ON a.student_id = u.id
-      WHERE a.qr_id = ?
-      ORDER BY a.marked_at ASC
-    `, [code]);
-    res.json({ count: attendanceResult.rows.length, students: attendanceResult.rows });
-  } catch (err) {
-    console.error('Live count error:', err);
-    res.status(500).json({ error: 'Database error' });
+    return res.status(500).send(`Error: ${err.message}`);
   }
 });
 
