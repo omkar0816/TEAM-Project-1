@@ -17,17 +17,16 @@ async function initDB() {
   expires_at INTEGER NOT NULL,
   FOREIGN KEY (teacher_id) REFERENCES teachers(id)
 )`);
-// Attendance table (legacy, can be removed later)
+// Attendance table
 await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  PRN TEXT NOT NULL,
+  student_id INTEGER NOT NULL,
   qr_id TEXT NOT NULL,
   marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(PRN, qr_id),
-  FOREIGN KEY (PRN) REFERENCES students(prn),
+  UNIQUE(student_id, qr_id),
+  FOREIGN KEY (student_id) REFERENCES students(id),
   FOREIGN KEY (qr_id) REFERENCES qr_codes(id)
 )`);
-
     // Students table
     await db.execute(`CREATE TABLE IF NOT EXISTS students (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

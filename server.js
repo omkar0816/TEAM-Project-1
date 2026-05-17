@@ -347,167 +347,117 @@ app.post('/generate-code', async (req, res) => {
   tryInsertCode();
 });
 
-// Mark attendance (for students)
+// ─── GET /mark-attendance ────────────────────────────────────────────────────
 app.get('/mark-attendance', async (req, res) => {
   const { code } = req.query;
-  if (!code) {
-    return res.status(400).send('Invalid code');
-  }
+  if (!code) return res.status(400).send('Invalid code');
+
   try {
     const now = Math.floor(Date.now() / 1000);
     const result = await db.execute(
       'SELECT * FROM qr_codes WHERE id = ? AND expires_at > ?',
       [code, now]
     );
-    const codeRow = result.rows[0];
-    if (!codeRow) {
-      return res.status(410).send('Code expired or invalid');
-    }
-    if (req.session.userId && req.session.role === 'student') {
-      // Fetch student's PRN using session userId
-      const studentResult = await db.execute(
-        'SELECT prn FROM students WHERE id = ?',
+    if (!result.rows[0]) return res.status(410).send('Code expired or invalid');
+
+    // If already logged in, mark directly
+    if (req.session?.userId) {
+      // Confirm this userId actually exists in students table
+      const studentCheck = await db.execute(
+        'SELECT id FROM students WHERE id = ?',
         [req.session.userId]
       );
-      const student = studentResult.rows[0];
-      if (!student) {
-        return res.status(403).send('Student not found');
-      }
-      const prn = student.prn;
+      if (studentCheck.rows[0]) {
+        const studentId = req.session.userId;
 
-      // Check for duplicate attendance using PRN
-      const existing = await db.execute(
-        'SELECT id FROM attendance WHERE PRN = ? AND qr_id = ?',
-        [prn, code]
-      );
-      if (existing.rows[0]) {
-        return res.status(409).send('Attendance already marked');
+        const existing = await db.execute(
+          'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
+          [studentId, code]
+        );
+        if (existing.rows[0]) return res.status(409).send('Attendance already marked');
+
+        await db.execute(
+          'INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)',
+          [studentId, code]
+        );
+        return res.send('Attendance marked successfully!');
       }
-      await db.execute(
-        'INSERT INTO attendance (PRN, qr_id) VALUES (?, ?)',
-        [prn, code]
-      );
-      return res.send('Attendance marked successfully!');
-    } else {
-      const safeCode = encodeURIComponent(code);
-      res.send(`
-        <h1>Mark Attendance</h1>
-        <p>You need to be logged in as a student.</p>
-        <a href="/">Login</a>
-        <br><br>
-        <button onclick="mark()">Mark Attendance</button>
-        <script>
-          function mark() {
-            fetch('/mark-attendance-post', {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: decodeURIComponent('${safeCode}') })
-            })
-              .then(res => res.text())
-              .then(msg => alert(msg));
-          }
-        </script>
-      `);
     }
+
+    // Not logged in — show button page
+    const safeCode = encodeURIComponent(code);
+    return res.send(`<!DOCTYPE html>
+<html><body>
+  <h1>Mark Attendance</h1>
+  <p>You need to be logged in as a student.</p>
+  <a href="/">Login</a><br><br>
+  <button onclick="mark()">Mark Attendance</button>
+  <script>
+    function mark() {
+      fetch('/mark-attendance-post', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: decodeURIComponent('${safeCode}') })
+      }).then(r => r.text()).then(msg => alert(msg));
+    }
+  <\/script>
+</body></html>`);
   } catch (err) {
-    console.error('Mark attendance error:', err);
+    console.error('Mark attendance GET error:', err);
     res.status(500).send('Error marking attendance');
   }
 });
 
-// POST version for AJAX
+// ─── POST /mark-attendance-post ──────────────────────────────────────────────
 app.post('/mark-attendance-post', async (req, res) => {
-  if (!req.session.userId || req.session.role !== 'student') {
-    return res.status(403).send('Unauthorized');
-  }
   const { code } = req.body;
-  if (!code) {
-    return res.status(400).send('Invalid code');
+  if (!code) return res.status(400).send('Invalid code');
+
+  if (!req.session?.userId) {
+    return res.status(403).send('Please log in first');
   }
+
   try {
+    const studentId = req.session.userId;
+
+    // Confirm session userId belongs to a student (not a teacher)
+    const studentCheck = await db.execute(
+      'SELECT id FROM students WHERE id = ?',
+      [studentId]
+    );
+    if (!studentCheck.rows[0]) {
+      return res.status(403).send('Not a student account — please log in as a student');
+    }
+
     const now = Math.floor(Date.now() / 1000);
 
-    // Fetch student's PRN using session userId
-    const studentResult = await db.execute(
-      'SELECT prn FROM students WHERE id = ?',
-      [req.session.userId]
-    );
-    const student = studentResult.rows[0];
-    if (!student) {
-      return res.status(403).send('Student not found');
-    }
-    const prn = student.prn;
-
-    // Validate code exists and is not expired
+    // Validate QR code is valid and not expired
     const codeResult = await db.execute(
-      'SELECT id, teacher_id FROM qr_codes WHERE id = ? AND expires_at > ?',
+      'SELECT id FROM qr_codes WHERE id = ? AND expires_at > ?',
       [code, now]
     );
-    if (!codeResult.rows[0]) {
-      return res.status(410).send('Code expired or invalid');
-    }
+    if (!codeResult.rows[0]) return res.status(410).send('Code expired or invalid');
 
-    // Check for duplicate using PRN
+    // Check duplicate
     const existing = await db.execute(
-      'SELECT id FROM attendance WHERE PRN = ? AND qr_id = ?',
-      [prn, code]
+      'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
+      [studentId, code]
     );
-    if (existing.rows[0]) {
-      return res.status(409).send('Attendance already marked');
-    }
+    if (existing.rows[0]) return res.status(409).send('Attendance already marked');
 
+    // Insert using student_id (integer) and qr_id (text)
     await db.execute(
-      'INSERT INTO attendance (PRN, qr_id) VALUES (?, ?)',
-      [prn, code]
+      'INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)',
+      [studentId, code]
     );
     return res.send('Attendance marked successfully!');
+
   } catch (err) {
     console.error('Mark attendance POST error:', err);
     res.status(500).send('Error marking attendance');
   }
 });
-
-// Get all sessions/lectures for teacher
-app.get('/sessions', async (req, res) => {
-  if (!req.session.userId || req.session.role !== 'teacher') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
-  try {
-    const result = await db.execute(`
-      SELECT id, subject, created_at, expires_at,
-             (SELECT COUNT(*) FROM attendance WHERE qr_id = qr_codes.id) as attendance_count
-      FROM qr_codes
-      WHERE teacher_id = ?
-      ORDER BY created_at DESC
-    `, [req.session.userId]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Sessions error:', err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// Get attendance for a specific session
-app.get('/session-attendance', async (req, res) => {
-  if (!req.session.userId || req.session.role !== 'teacher') {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-
-  const { code } = req.query;
-  if (!code) {
-    return res.status(400).json({ error: 'Code required' });
-  }
-
-  try {
-    // First verify the code belongs to this teacher
-    const codeResult = await db.execute('SELECT id, subject, created_at, expires_at FROM qr_codes WHERE id = ? AND teacher_id = ?', [code, req.session.userId]);
-    const codeRow = codeResult.rows[0];
-    if (!codeRow) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-
     // Get all attendance for this session
     const attendanceResult = await db.execute(`
       SELECT u.name as student_name, u.prn, u.email, a.marked_at
