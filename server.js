@@ -13,8 +13,15 @@ const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
-const secureCookies = process.env.SESSION_COOKIE_SECURE === 'true';
-const trustProxy = process.env.TRUST_PROXY === 'true';
+// In production (Render, Railway, etc.) cookies must be secure and proxy must be trusted.
+// Default secure to true in production so the session cookie is always sent over HTTPS.
+const secureCookies = process.env.SESSION_COOKIE_SECURE
+  ? process.env.SESSION_COOKIE_SECURE === 'true'
+  : isProduction;
+// Default trustProxy to true in production; cloud platforms always sit behind a reverse proxy.
+const trustProxy = process.env.TRUST_PROXY
+  ? process.env.TRUST_PROXY === 'true'
+  : isProduction;
 
 // Utility functions
 function validateInput(input, type, maxLength = 255) {
@@ -85,7 +92,10 @@ app.use(session({
   cookie: {
     secure: secureCookies,
     httpOnly: true,
-    sameSite: 'lax',
+    // 'lax' blocks cookies on QR code scans from a camera app (cross-site GET navigations
+    // that are not top-level, or POST fetches). Use 'none' in production (requires secure:true)
+    // so the session cookie is always included. Fall back to 'lax' in local dev (HTTP).
+    sameSite: secureCookies ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
