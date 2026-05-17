@@ -444,26 +444,6 @@ app.post('/mark-attendance-post', async (req, res) => {
     res.status(500).send('Error marking attendance');
   }
 });
-    // Validate student exists and is not already marked for this code
-    const studentResult = await db.execute('SELECT id FROM students WHERE id = ?', [studentId]);
-    if (!studentResult.rows[0]) {
-      return res.status(403).send('Unauthorized or student not found');
-    }
-    // Insert attendance with proper error handling
-    try {
-      await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [studentId, code]);
-      res.send('Marked!');
-    } catch (insertErr) {
-      if (insertErr.message && insertErr.message.includes('UNIQUE constraint failed')) {
-        return res.send('Already marked attendance for this code.');
-      }
-      throw insertErr;
-    }
-  } catch (err) {
-    console.error('Mark attendance post error:', err);
-    res.status(500).send('Error: ' + (err.message || 'unknown'));
-  }
-});
 
 // Get all sessions/lectures for teacher
 app.get('/sessions', async (req, res) => {
