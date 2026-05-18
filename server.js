@@ -550,7 +550,6 @@ app.get('/live-count', async (req, res) => {
   } catch (err) {
     console.error('Live count error:', err);
     res.status(500).json({ error: 'Database error' });
->>>>>>> 1809fac (Live attendance session bug fix)
   }
 });
 
