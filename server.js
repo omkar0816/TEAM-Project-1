@@ -449,9 +449,108 @@ app.post('/mark-attendance-post', async (req, res) => {
     return res.send('Attendance marked successfully!');
 
   } catch (err) {
-    // DETAILED error sent back so you can see what's wrong
     console.error('Mark attendance POST error:', err);
     return res.status(500).send(`Error: ${err.message}`);
+  }
+});
+
+// Get all sessions/lectures for teacher
+app.get('/sessions', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const result = await db.execute(`
+      SELECT id, subject, created_at, expires_at,
+             (SELECT COUNT(*) FROM attendance WHERE qr_id = qr_codes.id) as attendance_count
+      FROM qr_codes
+      WHERE teacher_id = ?
+      ORDER BY created_at DESC
+    `, [req.session.userId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Sessions error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Get attendance for a specific session
+app.get('/session-attendance', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.query;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
+  }
+
+  try {
+    // First verify the code belongs to this teacher
+    const codeResult = await db.execute('SELECT id, subject, created_at, expires_at FROM qr_codes WHERE id = ? AND teacher_id = ?', [code, req.session.userId]);
+    const codeRow = codeResult.rows[0];
+    if (!codeRow) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Get all attendance for this session
+    const attendanceResult = await db.execute(`
+      SELECT u.name as student_name, u.prn, u.email, a.marked_at
+      FROM attendance a
+      JOIN students u ON a.student_id = u.id
+      WHERE a.qr_id = ?
+      ORDER BY a.marked_at ASC
+    `, [code]);
+    res.json({
+      session: codeRow,
+      students: attendanceResult.rows
+    });
+  } catch (err) {
+    console.error('Session attendance error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// Get live count and student list for active code
+app.get('/live-count', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'teacher') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const { code } = req.query;
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
+  }
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+
+    // Verify the code belongs to this teacher (expired codes are still shown)
+    const codeResult = await db.execute(
+      'SELECT id FROM qr_codes WHERE id = ? AND teacher_id = ?',
+      [code, req.session.userId]
+    );
+    if (!codeResult.rows[0]) {
+      return res.json({ count: 0, students: [] });
+    }
+
+    const attendanceResult = await db.execute(`
+      SELECT s.name, s.prn, a.marked_at
+      FROM attendance a
+      JOIN students s ON a.student_id = s.id
+      WHERE a.qr_id = ?
+      ORDER BY a.marked_at ASC
+    `, [code]);
+
+    res.json({
+      count: attendanceResult.rows.length,
+      students: attendanceResult.rows
+    });
+  } catch (err) {
+    console.error('Live count error:', err);
+    res.status(500).json({ error: 'Database error' });
+>>>>>>> 1809fac (Live attendance session bug fix)
   }
 });
 

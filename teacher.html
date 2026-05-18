@@ -1013,7 +1013,7 @@
             listElement.innerHTML = data.students.map(student => `
               <div class="live-student-item">
                 <div>
-                  <div class="live-student-name">${student.first_name} ${student.last_name}</div>
+                  <div class="live-student-name">${student.name || 'Unknown'}</div>
                   <div class="live-student-prn">PRN: ${student.prn}</div>
                 </div>
                 <div style="color: var(--gold); font-size: 0.8rem;">
