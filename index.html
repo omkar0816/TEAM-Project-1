@@ -934,9 +934,6 @@
     }
   }
 
-      }
-    }
-  }
 
   function handleSignup() {
     clearErrors();
@@ -1011,6 +1008,10 @@
       .catch(err => showToast('Error: ' + err.message));
     }
   }
+
+  // Initialize UI on page load
+  setRole('student');
+  setTab('login');
 </script>
 </body>
 </html>
