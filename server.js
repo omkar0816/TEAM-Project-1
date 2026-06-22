@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('./src/models/database');
 const TursoSessionStore = require('./src/services/sessionStore');
 const ExcelJS = require('exceljs');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +18,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 // Default secure to true in production so the session cookie is always sent over HTTPS.
 const secureCookies = process.env.SESSION_COOKIE_SECURE
   ? process.env.SESSION_COOKIE_SECURE === 'true'
-  : isProduction;
+    : isProduction;
 // Default trustProxy to true in production; cloud platforms always sit behind a reverse proxy.
 const trustProxy = process.env.TRUST_PROXY
   ? process.env.TRUST_PROXY === 'true'
@@ -103,6 +104,27 @@ app.use(session({
 
 app.use(express.static(path.join(__dirname)));
 
+// Rate Limiting Middleware
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per window
+  message: 'Too many login attempts. Try again in 15 minutes.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const attendanceLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 attempts per minute
+  message: 'Too many attendance attempts. Try again in a minute.',
+});
+
+const codeGenerationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 codes per minute
+  message: 'Too many codes generated. Try again in a minute.',
+});
+
 // Routes
 
 // Test route
@@ -140,7 +162,7 @@ app.get('/', (req, res) => {
 });
 
 // Login
-app.post('/login', async (req, res) => {
+app.post('/login', loginLimiter, async (req, res) => {
   const role = req.body.role ? req.body.role.trim().toLowerCase() : 'student';
   const prn = req.body.prn ? req.body.prn.trim() : '';
   const email = req.body.email ? req.body.email.trim().toLowerCase() : '';
@@ -154,12 +176,21 @@ app.post('/login', async (req, res) => {
       if (!prn) {
         return res.json({ success: false, message: 'PRN is required for student login' });
       }
+      if (!password) {
+        return res.json({ success: false, message: 'Password is required for student login' });
+      }
 
       const result = await db.execute('SELECT * FROM students WHERE email = ? AND prn = ?', [email, prn]);
       const student = result.rows[0];
 
       if (!student) {
-        return res.json({ success: false, message: 'Student account not found with this email and PRN combination. Please sign up first.' });
+        return res.json({ success: false, message: 'Student account not found. Please sign up first.' });
+      }
+
+      // Check password
+      const passwordMatches = await bcrypt.compare(password, student.password_hash || '');
+      if (!passwordMatches) {
+        return res.json({ success: false, message: 'Invalid password' });
       }
 
       req.session.userId = student.id;
@@ -226,13 +257,17 @@ app.post('/signup', async (req, res) => {
       if (!department) {
         return res.status(400).json({ success: false, message: 'Department is required for students' });
       }
+      if (!password || password.length < 6) {
+        return res.status(400).json({ success: false, message: 'Password is required and must be at least 6 characters' });
+      }
 
-      const rollNo = /^\\d+$/.test(prn) ? parseInt(prn, 10) : Math.floor(Date.now() / 1000);
+      const rollNo = /^\d+$/.test(prn) ? prn : null;
       const className = year;
+      const passwordHash = await bcrypt.hash(password, 10);
 
       await db.execute(
-        'INSERT INTO students (prn, roll_no, name, email, class, department, year) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [prn, rollNo, fullName || 'Unknown Student', email, className, department, year]
+        'INSERT INTO students (prn, roll_no, name, email, class, department, year, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [prn, rollNo, fullName || 'Unknown Student', email, className, department, year, passwordHash]
       );
     } else {
       if (!empId) {
@@ -316,7 +351,7 @@ app.get('/profile', async (req, res) => {
 });
 
 // Generate Code (for teachers)
-app.post('/generate-code', async (req, res) => {
+app.post('/generate-code', codeGenerationLimiter, async (req, res) => {
   if (!req.session.userId || req.session.role !== 'teacher') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
@@ -373,19 +408,19 @@ app.get('/mark-attendance', async (req, res) => {
       if (!student) {
         return res.status(403).send('Student not found');
       }
-      const prn = student.prn;
+      const studentId = req.session.userId;
 
-      // Check for duplicate attendance using PRN
+      // Check for duplicate attendance using student_id
       const existing = await db.execute(
-        'SELECT id FROM attendance WHERE PRN = ? AND qr_id = ?',
-        [prn, code]
+        'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
+        [studentId, code]
       );
       if (existing.rows[0]) {
         return res.status(409).send('Attendance already marked');
       }
       await db.execute(
-        'INSERT INTO attendance (PRN, qr_id) VALUES (?, ?)',
-        [prn, code]
+        'INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)',
+        [studentId, code]
       );
       return res.send('Attendance marked successfully!');
     } else {
@@ -417,7 +452,7 @@ app.get('/mark-attendance', async (req, res) => {
 });
 
 // POST version for AJAX
-app.post('/mark-attendance-post', async (req, res) => {
+app.post('/mark-attendance-post', attendanceLimiter, async (req, res) => {
   if (!req.session.userId || req.session.role !== 'student') {
     return res.status(403).send('Unauthorized');
   }
@@ -428,16 +463,15 @@ app.post('/mark-attendance-post', async (req, res) => {
   try {
     const now = Math.floor(Date.now() / 1000);
 
-    // Fetch student's PRN using session userId
+    // Fetch student using session userId
     const studentResult = await db.execute(
-      'SELECT prn FROM students WHERE id = ?',
+      'SELECT id, name, email, prn FROM students WHERE id = ?',
       [req.session.userId]
     );
     const student = studentResult.rows[0];
     if (!student) {
       return res.status(403).send('Student not found');
     }
-    const prn = student.prn;
 
     // Validate code exists and is not expired
     const codeResult = await db.execute(
@@ -448,18 +482,18 @@ app.post('/mark-attendance-post', async (req, res) => {
       return res.status(410).send('Code expired or invalid');
     }
 
-    // Check for duplicate using PRN
+    // Check for duplicate using student_id
     const existing = await db.execute(
-      'SELECT id FROM attendance WHERE PRN = ? AND qr_id = ?',
-      [prn, code]
+      'SELECT id FROM attendance WHERE student_id = ? AND qr_id = ?',
+      [student.id, code]
     );
     if (existing.rows[0]) {
       return res.status(409).send('Attendance already marked');
     }
 
     await db.execute(
-      'INSERT INTO attendance (PRN, qr_id) VALUES (?, ?)',
-      [prn, code]
+      'INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)',
+      [student.id, code]
     );
     return res.send('Attendance marked successfully!');
   } catch (err) {
@@ -801,7 +835,9 @@ app.get('/download/monthly-report', async (req, res) => {
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Monthly Report');
-    sheet.addRow(['Teacher', `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim()]);
+    const [teacherFirst, ...teacherRest] = (teacher.name || 'Teacher').split(' ');
+    const teacherLast = teacherRest.join(' ');
+    sheet.addRow(['Teacher', `${teacherFirst} ${teacherLast}`.trim()]);
     sheet.addRow(['Subject', teacher.subject || 'N/A']);
     sheet.addRow(['Month', new Date().toLocaleString('default', { month: 'long', year: 'numeric' })]);
     sheet.addRow([]);
@@ -878,7 +914,9 @@ app.get('/download/lecture/:code', async (req, res) => {
     sheet.getRow(5).font = { bold: true };
 
     for (const s of allStudents.rows) {
-      sheet.addRow([`${s.first_name || ''} ${s.last_name || ''}`.trim(), s.email, attendedEmails.has(s.email) ? 'Present' : 'Absent']);
+      const [firstName, ...rest] = (s.name || '').split(' ');
+      const lastName = rest.join(' ');
+      sheet.addRow([`${firstName} ${lastName}`.trim(), s.email, attendedEmails.has(s.email) ? 'Present' : 'Absent']);
     }
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

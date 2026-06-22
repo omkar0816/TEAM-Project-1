@@ -752,12 +752,12 @@
           <label>Password</label>
           <div class="input-wrap">
             <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            <input type="password" placeholder="Min. 8 characters" id="signupPw"/>
+            <input type="password" placeholder="Min. 6 characters" id="signupPw"/>
             <button class="pw-toggle" onclick="togglePw('signupPw', this)" type="button">
               <svg viewBox="0 0 16 16" fill="none"><ellipse cx="8" cy="8" rx="6" ry="4" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>
             </button>
           </div>
-          <span class="error-msg">Password must be at least 8 characters.</span>
+          <span class="error-msg">Password must be at least 6 characters.</span>
         </div>
 
         <button class="submit-btn" onclick="handleSignup()">
@@ -793,10 +793,10 @@
     
     // Show/hide login fields based on role
     if (role === 'student') {
-      // Students: show email and PRN, hide password
+      // Students: show email, PRN, and password
       document.getElementById('fieldLoginEmail').style.display = '';
       document.getElementById('fieldLoginPrn').style.display = '';
-      document.getElementById('fieldLoginPw').style.display = 'none';
+      document.getElementById('fieldLoginPw').style.display = '';
     } else {
       // Teachers: show email and password, hide PRN
       document.getElementById('fieldLoginEmail').style.display = '';
@@ -806,7 +806,7 @@
     
     // Show/hide signup password field based on role
     if (role === 'student') {
-      document.getElementById('fieldSignupPw').style.display = 'none';
+      document.getElementById('fieldSignupPw').style.display = '';
     } else {
       document.getElementById('fieldSignupPw').style.display = '';
     }
@@ -848,15 +848,17 @@
     let ok = true;
 
     if (currentRole === 'student') {
-      // Student login: email + PRN (no password)
+      // Student login: email + PRN + password
       const email = document.getElementById('loginEmail').value.trim();
       const prn = document.getElementById('loginPrn').value.trim();
+      const password = document.getElementById('loginPw').value;
       
       if (!email || !/\S+@\S+\.\S+/.test(email)) { setError('fieldLoginEmail', true); ok = false; }
       if (!prn) { setError('fieldLoginPrn', true); ok = false; }
+      if (!password) { setError('fieldLoginPw', true); ok = false; }
 
       if (ok) {
-        const body = { role: 'student', email, prn };
+        const body = { role: 'student', email, prn, password };
         
         fetch('/login', {
           method: 'POST',
@@ -932,6 +934,10 @@
     }
   }
 
+      }
+    }
+  }
+
   function handleSignup() {
     clearErrors();
     let ok = true;
@@ -945,8 +951,9 @@
     if (!lname) { setError('fieldLname', true); ok = false; }
     if (!email || !/\S+@\S+\.\S+/.test(email)) { setError('fieldSignupEmail', true); ok = false; }
     
-    // Password required only for teachers
-    if (currentRole === 'teacher' && pw.length < 8) { setError('fieldSignupPw', true); ok = false; }
+    // Password required for both students and teachers
+    const minLength = currentRole === 'student' ? 6 : 8;
+    if (pw.length < minLength) { setError('fieldSignupPw', true); ok = false; }
 
     let prn, year, dept, empId, teacherDept;
     if (currentRole === 'student') {
@@ -964,14 +971,12 @@
     }
 
     if (ok) {
-      const body = { role: currentRole, firstName: fname, lastName: lname, email };
+      const body = { role: currentRole, firstName: fname, lastName: lname, email, password: pw };
       if (currentRole === 'student') {
         body.prn = prn;
         body.year = year;
         body.department = dept;
-        body.password = ''; // Empty password for students
       } else {
-        body.password = pw;
         body.department = teacherDept;
         body.empId = empId;
       }

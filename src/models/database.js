@@ -9,38 +9,7 @@ const db = createClient({
 // Initialize database tables with clean schema
 async function initDB() {
   try {
-    // QR Codes table
-    await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (
-  id TEXT PRIMARY KEY,
-  teacher_id INTEGER NOT NULL,
-  subject TEXT,
-  expires_at INTEGER NOT NULL,
-  FOREIGN KEY (teacher_id) REFERENCES teachers(id)
-)`);
-// Attendance table (legacy, can be removed later)
-await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  PRN TEXT NOT NULL,
-  qr_id TEXT NOT NULL,
-  marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(PRN, qr_id),
-  FOREIGN KEY (PRN) REFERENCES students(prn),
-  FOREIGN KEY (qr_id) REFERENCES qr_codes(id)
-)`);
-
-    // Students table
-    await db.execute(`CREATE TABLE IF NOT EXISTS students (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prn TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      class TEXT NOT NULL,
-      department TEXT NOT NULL,
-      year TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    // Teachers table
+    // 1. Teachers table (no foreign keys)
     await db.execute(`CREATE TABLE IF NOT EXISTS teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       emp_id TEXT UNIQUE NOT NULL,
@@ -54,7 +23,20 @@ await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       password_changed BOOLEAN DEFAULT FALSE
     )`);
 
-    // Subjects table
+    // 2. Students table (no foreign keys)
+    await db.execute(`CREATE TABLE IF NOT EXISTS students (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      prn TEXT UNIQUE NOT NULL,
+      roll_no TEXT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      class TEXT NOT NULL,
+      department TEXT NOT NULL,
+      year TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // 3. Subjects table (no foreign keys)
     await db.execute(`CREATE TABLE IF NOT EXISTS subjects (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       code TEXT UNIQUE NOT NULL,
@@ -64,32 +46,28 @@ await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Attendance sessions table
-    await db.execute(`CREATE TABLE IF NOT EXISTS attendance_sessions (
+    // 4. QR Codes table (references teachers)
+    await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (
       id TEXT PRIMARY KEY,
-      code INTEGER NOT NULL UNIQUE,
-      created_by INTEGER NOT NULL,
+      teacher_id INTEGER NOT NULL,
+      subject TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      expires_at DATETIME NOT NULL,
-      FOREIGN KEY (code) REFERENCES qr_codes(id),
-      FOREIGN KEY (created_by) REFERENCES teachers(id)
+      expires_at INTEGER NOT NULL,
+      FOREIGN KEY (teacher_id) REFERENCES teachers(id)
     )`);
 
-    
-
-    // Audit logs table
-    await db.execute(`CREATE TABLE IF NOT EXISTS audit_logs (
+    // 5. Attendance table (references students and qr_codes)
+    await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      user_type TEXT NOT NULL, -- 'student' or 'teacher'
-      action TEXT NOT NULL,
-      details TEXT,
-      ip_address TEXT,
-      user_agent TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      PRN TEXT NOT NULL,
+      qr_id TEXT NOT NULL,
+      marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(PRN, qr_id),
+      FOREIGN KEY (PRN) REFERENCES students(prn),
+      FOREIGN KEY (qr_id) REFERENCES qr_codes(id)
     )`);
 
-    // Assignments table (keeping for compatibility)
+    // 6. Assignments table (references teachers and subjects)
     await db.execute(`CREATE TABLE IF NOT EXISTS assignments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -102,18 +80,102 @@ await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       FOREIGN KEY (subject_id) REFERENCES subjects(id)
     )`);
 
+    // 7. Audit logs table (no foreign keys required)
+    await db.execute(`CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      user_type TEXT NOT NULL,
+      action TEXT NOT NULL,
+      details TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // 8. Attendance sessions table (references qr_codes and teachers)
+    await db.execute(`CREATE TABLE IF NOT EXISTS attendance_sessions (
+      id TEXT PRIMARY KEY,
+      code INTEGER NOT NULL UNIQUE,
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME NOT NULL,
+      FOREIGN KEY (code) REFERENCES qr_codes(id),
+      FOREIGN KEY (created_by) REFERENCES teachers(id)
+    )`);
+
+    // Migration: Add created_at to qr_codes if missing
+    try {
+      const qrTableInfo = await db.execute(`PRAGMA table_info(qr_codes)`);
+      const hasCreatedAt = qrTableInfo.rows.some(col => col.name === 'created_at');
+      if (!hasCreatedAt) {
+        await db.execute(`ALTER TABLE qr_codes ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP`);
+        console.log('Migration: Added created_at column to qr_codes table');
+      }
+    } catch (migrationErr) {
+      console.warn('Could not check/add created_at to qr_codes:', migrationErr.message);
+    }
+
+    // Migration: Add roll_no to students if missing
+    try {
+      const studentTableInfo = await db.execute(`PRAGMA table_info(students)`);
+      const hasRollNo = studentTableInfo.rows.some(col => col.name === 'roll_no');
+      if (!hasRollNo) {
+        await db.execute(`ALTER TABLE students ADD COLUMN roll_no TEXT`);
+        console.log('Migration: Added roll_no column to students table');
+      }
+    } catch (migrationErr) {
+      console.warn('Could not check/add roll_no to students:', migrationErr.message);
+    }
+
+    // Migration: Add password_hash to students if missing
+    try {
+      const studentTableInfo = await db.execute(`PRAGMA table_info(students)`);
+      const hasPassword = studentTableInfo.rows.some(col => col.name === 'password_hash');
+      if (!hasPassword) {
+        await db.execute(`ALTER TABLE students ADD COLUMN password_hash TEXT`);
+        console.log('Migration: Added password_hash column to students table');
+      }
+    } catch (migrationErr) {
+      console.warn('Could not check/add password_hash to students:', migrationErr.message);
+    }
+
+    // Migration: Add student_id to attendance if missing
+    try {
+      const attendanceTableInfo = await db.execute(`PRAGMA table_info(attendance)`);
+      const hasStudentId = attendanceTableInfo.rows.some(col => col.name === 'student_id');
+      if (!hasStudentId) {
+        // Add student_id column
+        await db.execute(`ALTER TABLE attendance ADD COLUMN student_id INTEGER`);
+        
+        // Migrate data from PRN to student_id
+        const attendanceRecords = await db.execute(`SELECT DISTINCT PRN FROM attendance WHERE PRN IS NOT NULL`);
+        for (const record of attendanceRecords.rows) {
+          const studentLookup = await db.execute(`SELECT id FROM students WHERE prn = ? LIMIT 1`, [record.PRN]);
+          if (studentLookup.rows[0]) {
+            await db.execute(`UPDATE attendance SET student_id = ? WHERE PRN = ?`, [studentLookup.rows[0].id, record.PRN]);
+          }
+        }
+        console.log('Migration: Added and populated student_id column in attendance table');
+      }
+    } catch (migrationErr) {
+      console.warn('Could not check/add student_id to attendance:', migrationErr.message);
+    }
+
     // Create indexes for performance
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_students_prn ON students(prn)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_students_roll_no ON students(roll_no)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_students_email ON students(email)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_teachers_email ON teachers(email)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_teachers_emp_id ON teachers(emp_id)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_sessions_teacher_id ON attendance_sessions(teacher_id)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_sessions_subject_id ON attendance_sessions(subject_id)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_records_student_id ON attendance_records(student_id)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_records_session_id ON attendance_records(session_id)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_audit_user_id ON audit_logs(user_id)`);
-    // await db.execute(`CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at)`);
+    try {
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_students_prn ON students(prn)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_students_email ON students(email)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_teachers_email ON teachers(email)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_teachers_emp_id ON teachers(emp_id)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_qr_codes_teacher_id ON qr_codes(teacher_id)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_qr_codes_expires_at ON qr_codes(expires_at)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON attendance(student_id)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_qr_id ON attendance(qr_id)`);
+      await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_marked_at ON attendance(marked_at)`);
+      console.log('Database indexes created successfully');
+    } catch (indexErr) {
+      console.warn('Some indexes may already exist:', indexErr.message);
+    }
 
     // Seed default subjects if none exist
     const subjectResult = await db.execute(`SELECT COUNT(*) AS count FROM subjects`);
