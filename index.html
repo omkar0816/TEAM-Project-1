@@ -923,8 +923,13 @@
             data.message = 'Login request failed';
           }
           if (data.success) {
-            showToast(`✓ Logged in as ${data.role}!`);
-            setTimeout(() => window.location.href = 'teacher.html', 1000);
+            if (data.mustChangePassword) {
+              showToast('Please set a new password before continuing.');
+              setTimeout(() => window.location.href = 'teacher.html', 1000);
+            } else {
+              showToast(`✓ Logged in as ${data.role}!`);
+              setTimeout(() => window.location.href = 'teacher.html', 1000);
+            }
           } else {
             showToast('Login failed: ' + data.message);
           }

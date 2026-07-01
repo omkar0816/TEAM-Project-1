@@ -206,7 +206,10 @@ async function initDB() {
     const teacherCount = teacherResult.rows[0]?.count || 0;
     if (teacherCount === 0) {
       const defaultEmail = process.env.DEFAULT_TEACHER_EMAIL || 'admin@wadia.ac.in';
-      const defaultPassword = process.env.DEFAULT_TEACHER_PASSWORD || 'TempPass123!';
+      const defaultPassword = process.env.DEFAULT_TEACHER_PASSWORD;
+      if (!defaultPassword) {
+        throw new Error('FATAL: DEFAULT_TEACHER_PASSWORD is not set.');
+      }
       const hashedPassword = await bcrypt.hash(defaultPassword, 10);
       await db.execute(
         `INSERT INTO teachers (emp_id, name, email, department, password_hash, password_changed)

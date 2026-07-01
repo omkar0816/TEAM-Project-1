@@ -908,6 +908,8 @@
     fetch('/check-session', { credentials: 'same-origin' }).then(res => res.json()).then(async data => {
       if (!data.loggedIn || data.role !== 'teacher') {
         window.location.href = '/';
+      } else if (data.mustChangePassword) {
+        showPasswordChangePrompt();
       } else {
         await loadProfile();
         loadStats();
@@ -916,6 +918,45 @@
         loadAssignments();
       }
     });
+
+    function showPasswordChangePrompt() {
+      const main = document.querySelector('.main-content');
+      if (!main) return;
+      main.innerHTML = `
+        <div class="section" style="max-width: 520px; margin: 0 auto;">
+          <h2>Set a new password</h2>
+          <p style="color: var(--muted); margin-bottom: 1rem;">For security, please create a new password before using the dashboard.</p>
+          <div style="display: grid; gap: 0.75rem;">
+            <input id="newPassword" type="password" placeholder="New password" style="padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: white;" />
+            <input id="confirmPassword" type="password" placeholder="Confirm password" style="padding: 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: white;" />
+            <button onclick="submitPasswordChange()" class="generate-btn" style="margin: 0; justify-content: center;">Save password</button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function submitPasswordChange() {
+      const newPassword = document.getElementById('newPassword').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      if (!newPassword || newPassword.length < 8) {
+        alert('Password must be at least 8 characters long.');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        alert('Passwords do not match.');
+        return;
+      }
+      try {
+        const response = await fetch('/change-password', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: newPassword }) });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Unable to update password');
+        }
+        window.location.reload();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
 
     async function logout() {
       await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
