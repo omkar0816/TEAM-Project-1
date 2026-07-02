@@ -16,12 +16,9 @@ const trustProxy = TRUST_PROXY
   : isProduction;
 const SESSION_SECRET_VALUE = requireEnv('SESSION_SECRET');
 
-if (isProduction) {
-  requireEnv('DEFAULT_TEACHER_PASSWORD');
-  if (process.env.DEFAULT_TEACHER_PASSWORD === 'TempPass123!') {
-    console.error('FATAL: DEFAULT_TEACHER_PASSWORD is still the example value. Set a real password.');
-    process.exit(1);
-  }
+if (isProduction && process.env.DEFAULT_TEACHER_PASSWORD === 'TempPass123!') {
+  console.error('FATAL: DEFAULT_TEACHER_PASSWORD is still the example value. Set a real password.');
+  process.exit(1);
 }
 
 // If running behind a proxy (common in cloud deployments),

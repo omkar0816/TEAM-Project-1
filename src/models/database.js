@@ -1,5 +1,6 @@
 const { createClient } = require('@libsql/client');
 const bcrypt = require('bcrypt');
+const { isProduction } = require('../config/env');
 
 const db = createClient({
   url: process.env.TURSO_DB_URL || 'file:attendance.db',
@@ -209,6 +210,9 @@ async function initDB() {
       const defaultPassword = process.env.DEFAULT_TEACHER_PASSWORD;
       if (!defaultPassword) {
         throw new Error('FATAL: DEFAULT_TEACHER_PASSWORD is not set.');
+      }
+      if (isProduction && defaultPassword === 'TempPass123!') {
+        throw new Error('FATAL: DEFAULT_TEACHER_PASSWORD is still the example value. Set a real password.');
       }
       const hashedPassword = await bcrypt.hash(defaultPassword, 10);
       await db.execute(
