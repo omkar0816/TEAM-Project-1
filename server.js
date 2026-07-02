@@ -3,7 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const path = require('path');
-const { db } = require('./src/models/database');
+const { db, initDB } = require('./src/models/database');
 const TursoSessionStore = require('./src/services/sessionStore');
 const routes = require('./src/routes');
 
@@ -60,7 +60,13 @@ app.use((err, req, res, next) => {
 });
 
 (async () => {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  try {
+    await initDB();
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
 })();

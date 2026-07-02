@@ -34,6 +34,7 @@ async function initDB() {
       class TEXT NOT NULL,
       department TEXT NOT NULL,
       year TEXT NOT NULL,
+      password_hash TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
