@@ -161,28 +161,26 @@ async function importSqlFile(filePath) {
     if (insert.table.toUpperCase() === 'PERSONAL_INFO') {
       const row = parseStudentRow(insert.columns, insert.values);
       const fullName = row.NAME_STD || `${row.FIRST_NAME || ''} ${row.LAST_NAME || ''}`.trim();
-      const email = row.EMAIL || '';
-      const prn = row.STUDENT_PRN || '';
+      const email = (row.EMAIL || '').trim();
+      const prn = (row.STUDENT_PRN || row.PRN || '').trim();
+      const year = (row.YEAR || '').trim() || 'FE';
+      const department = (row.DEPARTMENT || row.DEPT || '').trim() || 'Computer Engineering';
+      const className = (row.CLASS || row.YEAR || '').trim() || year;
+
       if (!email || !prn || !fullName) {
         skipped += 1;
         continue;
       }
-      const nameParts = fullName.split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-      const password = prn;
+
+      const passwordHash = await bcrypt.hash(prn, 10);
+
       try {
-        const result = await db.execute(
-          'INSERT OR IGNORE INTO users (email, password, role, first_name, last_name, prn) VALUES (?, ?, "student", ?, ?, ?)',
-          [email.toLowerCase(), password, firstName, lastName, prn]
+        await db.execute(
+          'INSERT OR IGNORE INTO students (prn, roll_no, name, email, class, department, year, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [prn, null, fullName, email.toLowerCase(), className, department, year, passwordHash]
         );
-        if (result.rows.length === 0 || result.numUpdatedRows > 0) {
-          imported += 1;
-          console.log(`Imported student: ${fullName} <${email}>`);
-        } else {
-          skipped += 1;
-          console.log(`Skipped existing student: ${email}`);
-        }
+        imported += 1;
+        console.log(`Imported student: ${fullName} <${email}>`);
       } catch (err) {
         skipped += 1;
         console.error(`Error importing ${email}:`, err.message || err);
