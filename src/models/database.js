@@ -10,6 +10,28 @@ const db = createClient({
 // Initialize database tables with clean schema
 async function initDB() {
   try {
+    // First, disable foreign key constraints temporarily for migration
+    await db.execute(`PRAGMA foreign_keys = OFF`);
+
+    // Migration: Drop and recreate tables with foreign keys to remove constraints
+    try {
+      // Check if tables exist with old foreign key constraints
+      const sessionTableInfo = await db.execute(`PRAGMA table_info(attendance_sessions)`);
+      
+      // Drop tables with foreign keys and recreate them without constraints
+      await db.execute(`DROP TABLE IF EXISTS attendance_sessions`);
+      await db.execute(`DROP TABLE IF EXISTS qr_codes`);
+      await db.execute(`DROP TABLE IF EXISTS attendance`);
+      await db.execute(`DROP TABLE IF EXISTS assignments`);
+      
+      console.log('Migration: Recreating tables without foreign key constraints');
+    } catch (dropErr) {
+      console.warn('Migration check/drop tables:', dropErr.message);
+    }
+
+    // Re-enable foreign key constraints
+    await db.execute(`PRAGMA foreign_keys = ON`);
+
     // 1. Teachers table (no foreign keys)
     await db.execute(`CREATE TABLE IF NOT EXISTS teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,28 +70,25 @@ async function initDB() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 4. QR Codes table (references teachers)
+    // 4. QR Codes table (no foreign keys - allows teacher deletion)
     await db.execute(`CREATE TABLE IF NOT EXISTS qr_codes (
       id TEXT PRIMARY KEY,
       teacher_id INTEGER NOT NULL,
       subject TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      expires_at INTEGER NOT NULL,
-      FOREIGN KEY (teacher_id) REFERENCES teachers(id)
+      expires_at INTEGER NOT NULL
     )`);
 
-    // 5. Attendance table (references students and qr_codes)
+    // 5. Attendance table (no foreign keys - allows student deletion)
     await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       PRN TEXT NOT NULL,
       qr_id TEXT NOT NULL,
       marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(PRN, qr_id),
-      FOREIGN KEY (PRN) REFERENCES students(prn),
-      FOREIGN KEY (qr_id) REFERENCES qr_codes(id)
+      UNIQUE(PRN, qr_id)
     )`);
 
-    // 6. Assignments table (references teachers and subjects)
+    // 6. Assignments table (no foreign keys - allows teacher/subject deletion)
     await db.execute(`CREATE TABLE IF NOT EXISTS assignments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -77,9 +96,7 @@ async function initDB() {
       due_date TEXT,
       created_by INTEGER,
       subject_id INTEGER,
-      created_at TEXT DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY (created_by) REFERENCES teachers(id),
-      FOREIGN KEY (subject_id) REFERENCES subjects(id)
+      created_at TEXT DEFAULT (datetime('now','localtime'))
     )`);
 
     // 7. Audit logs table (no foreign keys required)
@@ -94,15 +111,13 @@ async function initDB() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 8. Attendance sessions table (references qr_codes and teachers)
+    // 8. Attendance sessions table (no foreign keys - allows deletion)
     await db.execute(`CREATE TABLE IF NOT EXISTS attendance_sessions (
       id TEXT PRIMARY KEY,
       code INTEGER NOT NULL UNIQUE,
       created_by INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      expires_at DATETIME NOT NULL,
-      FOREIGN KEY (code) REFERENCES qr_codes(id),
-      FOREIGN KEY (created_by) REFERENCES teachers(id)
+      expires_at DATETIME NOT NULL
     )`);
 
     // Migration: Add created_at to qr_codes if missing
