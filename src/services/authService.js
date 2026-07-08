@@ -56,7 +56,7 @@ async function signupStudent(payload) {
   const passwordHash = await bcrypt.hash(password, 10);
   await studentRepository.createStudent({
     prn,
-    rollNo: /^\d+$/.test(prn) ? prn : null,
+    rollNo: prn, // Assuming roll number is same as PRN for simplicity
     fullName: `${firstName} ${lastName}`.trim() || 'Unknown Student',
     email,
     className: year,
