@@ -67,7 +67,7 @@ async function signup(req, res) {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('Signup error:', err.message);
+    console.error('Signup error:', err.message, err);
     let message = 'Registration failed';
     if (err.message && err.message.includes('UNIQUE constraint failed: students.email')) {
       message = 'Email already registered. Please log in instead.';
@@ -78,6 +78,7 @@ async function signup(req, res) {
     } else if (err.message && err.message.includes('UNIQUE constraint failed: teachers.emp_id')) {
       message = 'This employee ID is already registered.';
     }
+    console.error('Returning signup error to client:', { success: false, message });
     return res.status(400).json({ success: false, message });
   }
 }

@@ -24,16 +24,22 @@ async function createTestData() {
 
     for (const line of lines) {
       try {
-        const [fullName, email, prn, year, department] = line.split(',').map(field => field.trim().replace(/"/g, ''));
+        const [fullName, email, prn, year, department] = line.split(',').map(f => f.trim().replace(/"/g, ''));
+        if (!fullName || !email || !prn) {
+          console.warn(`Skipping invalid student line: ${line}`);
+          continue;
+        }
 
-        // Get next roll number
-        const rollResult = await db.execute('SELECT MAX(roll_no) as max_roll FROM students');
+        const passwordHash = await bcrypt.hash(prn, 10); // PRN as default password, hashed
+
+        const rollResult = await db.execute('SELECT MAX(CAST(roll_no AS INTEGER)) AS max_roll FROM students');
         const nextRollNo = (rollResult.rows[0]?.max_roll || 0) + 1;
 
         await db.execute(
-          'INSERT OR REPLACE INTO students (prn, roll_no, name, email, class, department, year) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [prn, nextRollNo, fullName, email, year, department, year]
+          'INSERT OR REPLACE INTO students (prn, roll_no, name, email, class, department, year, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [prn, String(nextRollNo), fullName, email, year || 'FE', department || 'Computer Engineering', year || 'FE', passwordHash]
         );
+
         console.log(`Inserted student: ${email}`);
       } catch (err) {
         console.error(`Error inserting student from line: ${line}`, err);
