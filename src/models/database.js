@@ -10,7 +10,6 @@ const db = createClient({
 // Initialize database tables with clean schema
 async function initDB() {
   try {
-<<<<<<< HEAD
     // One-time migration: earlier schema versions had FOREIGN KEY constraints on
     // attendance_sessions/qr_codes/attendance/assignments that blocked deleting a
     // teacher/student without cascading. This block drops+recreates those tables
@@ -43,7 +42,6 @@ async function initDB() {
       await db.execute(`PRAGMA foreign_keys = ON`);
     }
 
-=======
     // First, disable foreign key constraints temporarily for migration
     await db.execute(`PRAGMA foreign_keys = OFF`);
 
@@ -66,7 +64,6 @@ async function initDB() {
     // Re-enable foreign key constraints
     await db.execute(`PRAGMA foreign_keys = ON`);
 
->>>>>>> 9c1810791e6c34df90e329c59bf5370712b0b33d
     // 1. Teachers table (no foreign keys)
     await db.execute(`CREATE TABLE IF NOT EXISTS teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -280,9 +277,4 @@ async function initDB() {
     throw err;
   }
 }
-
-<<<<<<< HEAD
 module.exports = { db, initDB };
-=======
-module.exports = { db, initDB };
->>>>>>> 9c1810791e6c34df90e329c59bf5370712b0b33d
