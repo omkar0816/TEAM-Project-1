@@ -27,7 +27,7 @@ async function getSessionAttendance(code) {
 
 async function getLiveAttendance(code) {
   const result = await db.execute(`
-    SELECT u.name as student_name, u.prn, a.marked_at
+    SELECT u.name as name, u.prn, a.marked_at
     FROM attendance a
     JOIN students u ON a.student_id = u.id
     WHERE a.qr_id = ?
