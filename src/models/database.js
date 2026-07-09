@@ -42,28 +42,6 @@ async function initDB() {
       await db.execute(`PRAGMA foreign_keys = ON`);
     }
 
-    // First, disable foreign key constraints temporarily for migration
-    await db.execute(`PRAGMA foreign_keys = OFF`);
-
-    // Migration: Drop and recreate tables with foreign keys to remove constraints
-    try {
-      // Check if tables exist with old foreign key constraints
-      const sessionTableInfo = await db.execute(`PRAGMA table_info(attendance_sessions)`);
-      
-      // Drop tables with foreign keys and recreate them without constraints
-      await db.execute(`DROP TABLE IF EXISTS attendance_sessions`);
-      await db.execute(`DROP TABLE IF EXISTS qr_codes`);
-      await db.execute(`DROP TABLE IF EXISTS attendance`);
-      await db.execute(`DROP TABLE IF EXISTS assignments`);
-      
-      console.log('Migration: Recreating tables without foreign key constraints');
-    } catch (dropErr) {
-      console.warn('Migration check/drop tables:', dropErr.message);
-    }
-
-    // Re-enable foreign key constraints
-    await db.execute(`PRAGMA foreign_keys = ON`);
-
     // 1. Teachers table (no foreign keys)
     await db.execute(`CREATE TABLE IF NOT EXISTS teachers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,10 +92,10 @@ async function initDB() {
     // 5. Attendance table (no foreign keys - allows student deletion)
     await db.execute(`CREATE TABLE IF NOT EXISTS attendance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      PRN TEXT NOT NULL,
+      student_id INTEGER NOT NULL,
       qr_id TEXT NOT NULL,
       marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(PRN, qr_id)
+      UNIQUE(student_id, qr_id)
     )`);
 
     // 6. Assignments table (no foreign keys - allows teacher/subject deletion)
@@ -210,6 +188,49 @@ async function initDB() {
       console.warn('Could not check/add student_id to attendance:', migrationErr.message);
     }
 
+    // Migration: Rebuild attendance table without the legacy PRN column.
+    // PRN is part of a UNIQUE(PRN, qr_id) constraint, so SQLite can't just DROP
+    // COLUMN it — the whole table must be recreated. Runs once, guarded via
+    // schema_migrations. Without this, every insert into attendance (which only
+    // ever writes student_id + qr_id) fails with:
+    //   SQLITE_CONSTRAINT: NOT NULL constraint failed: attendance.PRN
+    try {
+      const prnMigrationDone = await db.execute(
+        `SELECT 1 FROM schema_migrations WHERE name = ?`,
+        ['attendance_drop_prn_column']
+      );
+      if (prnMigrationDone.rows.length === 0) {
+        const attendanceTableInfo = await db.execute(`PRAGMA table_info(attendance)`);
+        const hasPRN = attendanceTableInfo.rows.some(col => col.name === 'PRN');
+        if (hasPRN) {
+          await db.execute(`
+            CREATE TABLE attendance_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL,
+              qr_id TEXT NOT NULL,
+              marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE(student_id, qr_id)
+            )
+          `);
+          await db.execute(`
+            INSERT INTO attendance_new (id, student_id, qr_id, marked_at)
+            SELECT id, student_id, qr_id, marked_at
+            FROM attendance
+            WHERE student_id IS NOT NULL
+          `);
+          await db.execute(`DROP TABLE attendance`);
+          await db.execute(`ALTER TABLE attendance_new RENAME TO attendance`);
+          console.log('Migration: Rebuilt attendance table without legacy PRN column (one-time)');
+        }
+        await db.execute(
+          `INSERT INTO schema_migrations (name) VALUES (?)`,
+          ['attendance_drop_prn_column']
+        );
+      }
+    } catch (migrationErr) {
+      console.warn('Could not rebuild attendance table without PRN column:', migrationErr.message);
+    }
+
     // Create indexes for performance
     try {
       await db.execute(`CREATE INDEX IF NOT EXISTS idx_students_prn ON students(prn)`);
@@ -277,4 +298,5 @@ async function initDB() {
     throw err;
   }
 }
+
 module.exports = { db, initDB };
