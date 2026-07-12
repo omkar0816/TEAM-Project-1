@@ -20,15 +20,28 @@ async function login(req, res) {
       return res.status(result.status || 400).json({ success: false, message: result.message });
     }
 
-    req.session.userId = result.data.userId;
-    req.session.role = result.data.role;
-    if (result.data.mustChangePassword) {
-      req.session.mustChangePassword = true;
-    } else {
-      delete req.session.mustChangePassword;
-    }
+    req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        console.error('Session regenerate error:', regenErr);
+        return res.status(500).json({ success: false, message: 'Login failed, please try again' });
+      }
 
-    return res.json({ success: true, role: result.data.role, mustChangePassword: !!result.data.mustChangePassword });
+      req.session.userId = result.data.userId;
+      req.session.role = result.data.role;
+      if (result.data.mustChangePassword) {
+        req.session.mustChangePassword = true;
+      } else {
+        delete req.session.mustChangePassword;
+      }
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error('Session save error:', saveErr);
+          return res.status(500).json({ success: false, message: 'Login failed, please try again' });
+        }
+        return res.json({ success: true, role: result.data.role, mustChangePassword: !!result.data.mustChangePassword });
+      });
+    });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: 'Database error' });
