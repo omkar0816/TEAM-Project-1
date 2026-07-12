@@ -293,7 +293,7 @@
         currentStudent = data.student;
 
         document.getElementById('studentName').textContent = 
-          `${data.student.first_name || ''} ${data.student.last_name || ''}`.trim() || 'N/A';
+          data.student.name || 'N/A';
         document.getElementById('studentEmailDisplay').textContent = data.student.email;
         document.getElementById('studentPRNDisplay').textContent = data.student.prn;
         document.getElementById('attendanceCount').textContent = data.total;
@@ -327,7 +327,7 @@
         document.getElementById('studentInfo').classList.add('show');
         document.getElementById('attendanceTable').classList.add('show');
         document.getElementById('addAttendanceForm').classList.add('show');
-        showStatus(`Found ${currentStudent.first_name} ${currentStudent.last_name}`, 'success');
+        showStatus(`Found ${currentStudent.name}`, 'success');
       } catch (err) {
         console.error('Error searching student:', err);
         showStatus('Error searching student', 'error');
