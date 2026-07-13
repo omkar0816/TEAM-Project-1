@@ -892,6 +892,7 @@
     let countdownInterval = null;
     let liveUpdateInterval = null;
     let teacherSubject = 'Lecture';
+    const SESSION_DURATION_SECONDS = 300;
 
     async function loadProfile() {
       try {
@@ -1005,7 +1006,7 @@
       number.textContent = code;
       display.style.display = 'block';
 
-      let timeLeft = 50;
+      let timeLeft = SESSION_DURATION_SECONDS;
       timer.textContent = `Expires in: ${timeLeft} seconds`;
 
       if (countdownInterval) clearInterval(countdownInterval);
@@ -1117,7 +1118,7 @@
               ${records.map(record => `
                 <div class="student-item">
                   <div class="student-info">
-                    <div class="student-name">${record.first_name} ${record.last_name}</div>
+                    <div class="student-name">${record.student_name || `${record.first_name || ''} ${record.last_name || ''}`.trim() || 'Unknown Student'}</div>
                     <div class="student-details">${record.prn} • ${record.email}</div>
                   </div>
                   <div class="attendance-time">${new Date(record.marked_at).toLocaleTimeString()}</div>
@@ -1264,7 +1265,7 @@
             ${data.students.map(student => `
               <div class="student-item">
                 <div class="student-info">
-                  <div class="student-name">${student.first_name} ${student.last_name}</div>
+                  <div class="student-name">${student.student_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown Student'}</div>
                   <div class="student-details">PRN: ${student.prn} • ${student.email}</div>
                 </div>
                 <div class="attendance-time">${new Date(student.marked_at).toLocaleTimeString()}</div>

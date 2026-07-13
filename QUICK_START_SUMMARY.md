@@ -43,7 +43,7 @@
 - Attendance data not showing (database schema mismatch)
 - Excel reports (queries fail)
 - Session auto-expire (manual only)
-- Error handling (no error messages)
+- Error handling (no error messages)1
 
 ### What's Missing ⏳
 - WebSocket for instant updates

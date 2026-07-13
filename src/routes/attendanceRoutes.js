@@ -21,7 +21,8 @@ router.post('/generate-code', codeGenerationLimiter, async (req, res) => {
   }
 
   const { subject } = req.body;
-  const expiresAt = Math.floor(Date.now() / 1000) + 50;
+  const SESSION_DURATION_SECONDS = 300;
+  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_DURATION_SECONDS;
   const { db } = require('../models/database');
   const teacherResult = await db.execute('SELECT subject FROM teachers WHERE id = ?', [req.session.userId]);
   const teacherInfo = teacherResult.rows[0] || {};

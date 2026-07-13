@@ -203,15 +203,13 @@ async function initDB() {
         const attendanceTableInfo = await db.execute(`PRAGMA table_info(attendance)`);
         const hasPRN = attendanceTableInfo.rows.some(col => col.name === 'PRN');
         if (hasPRN) {
-          await db.execute(`
-            CREATE TABLE attendance_new (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              student_id INTEGER NOT NULL,
-              qr_id TEXT NOT NULL,
-              marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-              UNIQUE(student_id, qr_id)
-            )
-          `);
+          await db.execute(`CREATE TABLE attendance_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            qr_id TEXT NOT NULL,
+            marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_id, qr_id)
+          )`);
           await db.execute(`
             INSERT INTO attendance_new (id, student_id, qr_id, marked_at)
             SELECT id, student_id, qr_id, marked_at
@@ -229,6 +227,34 @@ async function initDB() {
       }
     } catch (migrationErr) {
       console.warn('Could not rebuild attendance table without PRN column:', migrationErr.message);
+    }
+
+    // Migration: If the legacy PRN-based table still exists, rebuild it even when
+    // the schema_migration marker is missing (e.g., after an existing DB was created
+    // before this fix landed).
+    try {
+      const attendanceTableInfo = await db.execute(`PRAGMA table_info(attendance)`);
+      const hasLegacyPRN = attendanceTableInfo.rows.some(col => col.name === 'PRN');
+      if (hasLegacyPRN) {
+        await db.execute(`CREATE TABLE attendance_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          student_id INTEGER NOT NULL,
+          qr_id TEXT NOT NULL,
+          marked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(student_id, qr_id)
+        )`);
+        await db.execute(`
+          INSERT INTO attendance_new (id, student_id, qr_id, marked_at)
+          SELECT id, student_id, qr_id, marked_at
+          FROM attendance
+          WHERE student_id IS NOT NULL
+        `);
+        await db.execute(`DROP TABLE attendance`);
+        await db.execute(`ALTER TABLE attendance_new RENAME TO attendance`);
+        console.log('Migration: Rebuilt attendance table to remove legacy PRN column');
+      }
+    } catch (migrationErr) {
+      console.warn('Could not rebuild attendance table for legacy PRN schema:', migrationErr.message);
     }
 
     // Create indexes for performance

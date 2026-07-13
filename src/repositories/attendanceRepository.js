@@ -16,7 +16,12 @@ async function hasAttendanceForStudent(studentId, code) {
 
 async function getSessionAttendance(code) {
   const result = await db.execute(`
-    SELECT u.name as student_name, u.prn, u.email, a.marked_at
+    SELECT u.name as student_name,
+           u.name as first_name,
+           u.name as last_name,
+           u.prn,
+           u.email,
+           a.marked_at
     FROM attendance a
     JOIN students u ON a.student_id = u.id
     WHERE a.qr_id = ?
@@ -38,8 +43,14 @@ async function getLiveAttendance(code) {
 
 async function getTeacherAttendance(teacherId) {
   const result = await db.execute(`
-    SELECT a.marked_at, q.subject, q.id as session_id,
-           u.name as student_name, u.prn, u.email
+    SELECT a.marked_at,
+           q.subject,
+           q.id as session_id,
+           u.name as student_name,
+           u.name as first_name,
+           u.name as last_name,
+           u.prn,
+           u.email
     FROM attendance a
     JOIN qr_codes q ON a.qr_id = q.id
     JOIN students u ON a.student_id = u.id
