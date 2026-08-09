@@ -86,17 +86,31 @@ async function buildMonthlyReportWorkbook(teacherId) {
 }
 
 async function buildLectureReportWorkbook(teacherId, code) {
-  const sessionResult = await db.execute({ sql: `SELECT id, subject, created_at FROM qr_codes WHERE id = ? AND teacher_id = ?`, args: [code, teacherId] });
+  const sessionResult = await db.execute({
+    sql: `SELECT id, subject, created_at FROM qr_codes WHERE id = ? AND teacher_id = ?`,
+    args: [code, teacherId]
+  });
   const session = sessionResult.rows[0];
   if (!session) {
     return null;
   }
 
-  const attendedResult = await db.execute({ sql: `SELECT u.name, u.email FROM attendance a JOIN students u ON a.student_id = u.id WHERE a.qr_id = ?`, args: [code] });
-  const allStudents = await db.execute({ sql: `SELECT name, email FROM students ORDER BY name`, args: [] });
-  const teacherProfile = await db.execute({ sql: `SELECT name FROM teachers WHERE id = ?`, args: [teacherId] });
-  const teacherName = teacherProfile.rows[0] ? `${teacherProfile.rows[0].name || ''}`.trim() : 'Teacher';
-  const attendedEmails = new Set(attendedResult.rows.map(r => r.email));
+  const allStudents = await db.execute({
+    sql: `SELECT id, name, email FROM students ORDER BY name`,
+    args: []
+  });
+
+  const attendedResult = await db.execute({
+    sql: `SELECT student_id FROM attendance WHERE qr_id = ?`,
+    args: [code]
+  });
+  const attendedStudentIds = new Set(attendedResult.rows.map(r => r.student_id));
+
+  const teacherProfile = await db.execute({
+    sql: `SELECT name FROM teachers WHERE id = ?`,
+    args: [teacherId]
+  });
+  const teacherName = teacherProfile.rows[0] ? teacherProfile.rows[0].name.trim() : 'Teacher';
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Lecture Attendance');
@@ -107,10 +121,9 @@ async function buildLectureReportWorkbook(teacherId, code) {
   sheet.addRow(['Name', 'Email', 'Status']);
   sheet.getRow(5).font = { bold: true };
 
-  for (const s of allStudents.rows) {
-    const [firstName, ...rest] = (s.name || '').split(' ');
-    const lastName = rest.join(' ');
-    sheet.addRow([`${firstName} ${lastName}`.trim(), s.email, attendedEmails.has(s.email) ? 'Present' : 'Absent']);
+  for (const student of allStudents.rows) {
+    const status = attendedStudentIds.has(student.id) ? 'Present' : 'Absent';
+    sheet.addRow([student.name, student.email, status]);
   }
 
   return workbook;
