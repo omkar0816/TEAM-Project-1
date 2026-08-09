@@ -27,7 +27,7 @@ async function login(req, res) {
       }
 
       req.session.userId = result.data.userId;
-      req.session.role = result.data.role;
+      req.session.role = result.data.role || 'student';
       if (result.data.mustChangePassword) {
         req.session.mustChangePassword = true;
       } else {

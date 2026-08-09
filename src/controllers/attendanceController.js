@@ -41,9 +41,20 @@ async function markAttendanceGet(req, res) {
 }
 
 async function markAttendancePost(req, res) {
-  if (!req.session.userId || req.session.role !== 'student') {
-    return res.status(403).send('Unauthorized');
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized - Please login first'
+    });
   }
+
+  if (req.session.role !== 'student') {
+    return res.status(403).json({
+      success: false,
+      message: 'Only students can mark attendance'
+    });
+  }
+
   const { code } = req.body;
   if (!code) return res.status(400).send('Invalid code');
 
