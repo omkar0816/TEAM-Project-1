@@ -38,7 +38,7 @@ app.use(session({
     // 'lax' blocks cookies on QR code scans from a camera app (cross-site GET navigations
     // that are not top-level, or POST fetches). Use 'none' in production (requires secure:true)
     // so the session cookie is always included. Fall back to 'lax' in local dev (HTTP).
-    sameSite: secureCookies ? 'none' : 'lax',
+    sameSite: secureCookies ? 'strict' : 'lax',
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
@@ -70,3 +70,13 @@ app.use((err, req, res, next) => {
     process.exit(1);
   }
 })();
+
+  if (process.env.NODE_ENV === 'production') {
+    app.use((req, res, next) => {
+      if (req.header('x-forwarded-proto') !== 'https') {
+        res.redirect(307, `https://${req.header('host')}${req.url}`);
+      } else next();
+    });
+    app.set('trust proxy', 1);
+  }
+  
