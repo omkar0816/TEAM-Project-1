@@ -94,12 +94,13 @@ async function buildLectureReportWorkbook(teacherId, code) {
   if (!session) {
     return null;
   }
-
-  const allStudents = await db.execute({
-    sql: `SELECT id, name, email FROM students ORDER BY name`,
-    args: []
-  });
-
+ const enrolledStudents = await db.execute(`
+    SELECT DISTINCT s.id, s.name, s.email 
+    FROM students s
+    JOIN class_enrollments ce ON s.id = ce.student_id
+    WHERE ce.teacher_id = ?  // ✅ Only enrolled students
+  `);
+  
   const attendedResult = await db.execute({
     sql: `SELECT student_id FROM attendance WHERE qr_id = ?`,
     args: [code]
