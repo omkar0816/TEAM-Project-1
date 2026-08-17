@@ -274,7 +274,7 @@
         const response = await fetch('/mark-attendance-post', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
+          credentials: 'same-origin',
           body: JSON.stringify({ code })
         });
 

@@ -54,19 +54,20 @@ class TursoSessionStore extends session.Store {
     }
   }
 
+const SESSION_TIMEOUT = 30 * 60 * 1000;  // Define once
+  
+  async set(sid, session, cb) {
+    const expires = session.cookie?.expires
+      ? new Date(session.cookie.expires).getTime()
+      : Date.now() + SESSION_TIMEOUT;  // ✅ Use variable, not 86400000
+    // ...
+  }
+  
   async touch(sid, session, cb) {
-    try {
-      const expires = session.cookie?.expires
-        ? new Date(session.cookie.expires).getTime()
-        : Date.now() + 30 * 60 * 1000;
-      await this.db.execute(
-        'UPDATE sessions SET expires = ? WHERE sid = ?',
-        [expires, sid]
-      );
-      cb(null);
-    } catch (err) {
-      cb(err);
-    }
+    const expires = session.cookie?.expires
+      ? new Date(session.cookie.expires).getTime()
+      : Date.now() + SESSION_TIMEOUT;  // ✅ Same timeout
+    // ...
   }
 
   async destroy(sid, cb) {
