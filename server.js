@@ -79,4 +79,6 @@ app.use((err, req, res, next) => {
     });
     app.set('trust proxy', 1);
   }
-  
+   cookie: {
+    maxAge: 30 * 60 * 1000  //  Match sessionStore
+   }

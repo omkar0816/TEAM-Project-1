@@ -1,4 +1,5 @@
 const session = require('express-session');
+const SESSION_TIMEOUT = 30 * 60 * 1000;  // Define once
 
 class TursoSessionStore extends session.Store {
   constructor(db) {
@@ -41,7 +42,7 @@ class TursoSessionStore extends session.Store {
     try {
       const expires = session.cookie?.expires
         ? new Date(session.cookie.expires).getTime()
-        : Date.now() + 86400000; // 24h default
+        : Date.now() + SESSION_TIMEOUT; // 24h default
       const data = JSON.stringify(session);
       await this.db.execute(
         `INSERT INTO sessions (sid, data, expires) VALUES (?, ?, ?)
@@ -53,8 +54,6 @@ class TursoSessionStore extends session.Store {
       cb(err);
     }
   }
-
-const SESSION_TIMEOUT = 30 * 60 * 1000;  // Define once
   
   async set(sid, session, cb) {
     const expires = session.cookie?.expires

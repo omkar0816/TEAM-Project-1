@@ -29,3 +29,21 @@ module.exports = {
   DEFAULT_TEACHER_EMAIL: getEnv('DEFAULT_TEACHER_EMAIL', 'admin@wadia.ac.in'),
   DEFAULT_TEACHER_PASSWORD: process.env.DEFAULT_TEACHER_PASSWORD,
 };
+ //Cookie security configuration
+const getCookieConfig = () => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  // For production: rely on TRUST_PROXY and explicit HTTPS enforcement
+  // For development: allow non-HTTPS testing
+  return {
+    secure: isProduction ? true : false,  // Require HTTPS in production
+    httpOnly: true,                        // Critical: prevents XSS access to session cookie
+    sameSite: isProduction ? 'strict' : 'lax', // strict in prod, lax in dev
+    maxAge: 30 * 60 * 1000,               // 30 minutes
+  };
+};
+
+module.exports = {
+  // ... existing exports ...
+  getCookieConfig,
+};
