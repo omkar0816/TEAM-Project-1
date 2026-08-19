@@ -21,7 +21,8 @@ jobs:
     # The fix is inserted right here
     - name: Fix Ubuntu mirrors to prevent hang
       run: |
-        sudo find /etc/apt/ -name "*.sources" -o -name "*.list" | xargs sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g'
+        sudo rm -f /etc/apt/apt-mirrors.txt
+        echo "http://archive.ubuntu.com/ubuntu" | sudo tee /etc/apt/apt-mirrors.txt
         sudo apt-get update
         
     - name: Install Playwright Browsers
