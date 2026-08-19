@@ -7,9 +7,18 @@ async function createAssignment({ title, description, dueDate, createdBy }) {
   });
 }
 
-const result = req.session.role === 'teacher'
-  ? await assignmentService.listAssignments(req.session.userId)
-  : await assignmentService.listAllAssignments();
+async function listAssignments(createdBy) {
+  const result = await db.execute({
+    sql: `
+      SELECT id, title, description, due_date, created_by, created_at
+      FROM assignments
+      WHERE created_by = ?
+      ORDER BY due_date ASC, created_at DESC
+    `,
+    args: [createdBy],
+  });
+  return result.rows;
+}
 
 async function deleteAssignment(id) {
   await db.execute({
