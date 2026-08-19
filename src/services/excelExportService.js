@@ -4,7 +4,16 @@ const { db } = require('../models/database');
 async function buildMonthlyReportWorkbook(teacherId) {
   const teacherResult = await db.execute({ sql: `SELECT name, subject FROM teachers WHERE id = ?`, args: [teacherId] });
   const teacher = teacherResult.rows[0] || {};
-  const students = await db.execute({ sql: `SELECT id, name, email FROM students ORDER BY name`, args: [] });
+  const enrolledStudents = await db.execute({
+    sql: `
+      SELECT DISTINCT s.id, s.name, s.email
+      FROM students s
+      JOIN class_enrollments ce ON ce.student_id = s.id
+      WHERE ce.teacher_id = ?
+      ORDER BY s.name
+    `,
+    args: [teacherId]
+  });
 
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -25,7 +34,8 @@ async function buildMonthlyReportWorkbook(teacherId) {
         END AS status,
         COALESCE(a.marked_at, NULL) AS marked_at
       FROM qr_codes qs
-      LEFT JOIN students s ON 1 = 1
+      JOIN class_enrollments ce ON ce.teacher_id = qs.teacher_id
+      JOIN students s ON s.id = ce.student_id
       LEFT JOIN attendance a ON a.student_id = s.id AND a.qr_id = qs.id
       WHERE qs.teacher_id = ?
         AND DATE(qs.created_at) BETWEEN ? AND ?
@@ -64,7 +74,7 @@ async function buildMonthlyReportWorkbook(teacherId) {
     }
   }
 
-  const allStudentRows = students.rows.length > 0 ? students.rows : [...studentAttendance.values()].map(student => ({ id: student.name, name: student.name, email: student.email }));
+  const allStudentRows = enrolledStudents.rows;
   for (const student of allStudentRows) {
     const record = studentAttendance.get(student.id) || { name: student.name, email: student.email, statuses: new Map() };
     const statuses = sessionLabels.map(label => {
@@ -94,12 +104,15 @@ async function buildLectureReportWorkbook(teacherId, code) {
   if (!session) {
     return null;
   }
- const enrolledStudents = await db.execute(`
+  const enrolledStudents = await db.execute({
+    sql: `
     SELECT DISTINCT s.id, s.name, s.email 
     FROM students s
     JOIN class_enrollments ce ON s.id = ce.student_id
-    WHERE ce.teacher_id = ?  // ✅ Only enrolled students
-  `);
+    WHERE ce.teacher_id = ?
+    `,
+    args: [teacherId]
+  });
   
   const attendedResult = await db.execute({
     sql: `SELECT student_id FROM attendance WHERE qr_id = ?`,
@@ -122,7 +135,7 @@ async function buildLectureReportWorkbook(teacherId, code) {
   sheet.addRow(['Name', 'Email', 'Status']);
   sheet.getRow(5).font = { bold: true };
 
-  for (const student of allStudents.rows) {
+  for (const student of enrolledStudents.rows) {
     const status = attendedStudentIds.has(student.id) ? 'Present' : 'Absent';
     sheet.addRow([student.name, student.email, status]);
   }

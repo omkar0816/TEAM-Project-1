@@ -39,7 +39,7 @@ app.use(session({
     // that are not top-level, or POST fetches). Use 'none' in production (requires secure:true)
     // so the session cookie is always included. Fall back to 'lax' in local dev (HTTP).
     sameSite: secureCookies ? 'strict' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000
+    maxAge: 30 * 60 * 1000
   }
 }));
 

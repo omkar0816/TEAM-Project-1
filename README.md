@@ -4,11 +4,22 @@ A production-ready attendance management system for educational institutions, fe
 
 ## 🚀 Key Features
 
-### Anti-Proxy Attendance System
-- **Device Lock**: One attendance per device per session
-- **Location Validation**: GPS-based campus boundary checking
-- **Browser Fingerprinting**: Advanced device identification
-- **50-Second Time Windows**: Prevents code sharing
+### Core Attendance Features
+- **Verbal Code System**: Teachers announce 5-digit codes in class
+- **Automatic Expiry**: Codes expire after 5 minutes
+- **Enrollment Validation**: Students can only mark for enrolled classes
+- **Duplicate Prevention**: One mark per student per session
+
+### Current Security
+- HTTPOnly, Secure, SameSite cookies
+- 30-minute session timeout
+- bcrypt password hashing
+- Session-based authentication
+
+### Planned Features (Not Yet Implemented)
+- Biometric authentication
+- GPS campus boundary validation
+- WebSockets for real-time updates
 
 ### Advanced Analytics Dashboard
 - **Teacher Dashboard**: Session stats, subject-wise breakdown, low-attendance alerts

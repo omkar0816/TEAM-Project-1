@@ -130,6 +130,19 @@ async function initDB() {
       expires_at DATETIME NOT NULL
     )`);
 
+    // Class enrollments table
+    await db.execute(`CREATE TABLE IF NOT EXISTS class_enrollments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL,
+      teacher_id INTEGER NOT NULL,
+      subject TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(student_id, teacher_id),
+      FOREIGN KEY (student_id) REFERENCES students(id),
+      FOREIGN KEY (teacher_id) REFERENCES teachers(id)
+    )`);
+    console.log('class_enrollments table initialized.');
+
     // Migration: Add created_at to qr_codes if missing
     try {
       const qrTableInfo = await db.execute(`PRAGMA table_info(qr_codes)`);

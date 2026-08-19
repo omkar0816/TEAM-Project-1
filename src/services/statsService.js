@@ -32,15 +32,45 @@ async function getStudentSessions(studentId) {
 
 async function getStudentStats(studentId) {
   const totalResult = await db.execute({
-    sql: `SELECT COUNT(*) AS total FROM qr_codes WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now', 'localtime')`,
-    args: [],
-  });
-  const attendedResult = await db.execute({
-    sql: `SELECT COUNT(*) AS attended FROM attendance a JOIN qr_codes q ON a.qr_id = q.id WHERE a.student_id = ? AND strftime('%Y-%m', q.created_at) = strftime('%Y-%m', 'now', 'localtime')`,
+    sql: `
+      SELECT COUNT(*) AS total
+      FROM qr_codes q
+      JOIN class_enrollments ce ON ce.teacher_id = q.teacher_id
+      WHERE ce.student_id = ?
+        AND strftime('%Y-%m', q.created_at) = strftime('%Y-%m', 'now', 'localtime')
+    `,
     args: [studentId],
   });
-  const allTimeTotal = await db.execute({ sql: `SELECT COUNT(*) AS total FROM qr_codes`, args: [] });
-  const allTimeAttended = await db.execute({ sql: `SELECT COUNT(*) AS attended FROM attendance WHERE student_id = ?`, args: [studentId] });
+  const attendedResult = await db.execute({
+    sql: `
+      SELECT COUNT(*) AS attended
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      JOIN class_enrollments ce ON ce.teacher_id = q.teacher_id AND ce.student_id = a.student_id
+      WHERE a.student_id = ?
+        AND strftime('%Y-%m', q.created_at) = strftime('%Y-%m', 'now', 'localtime')
+    `,
+    args: [studentId],
+  });
+  const allTimeTotal = await db.execute({
+    sql: `
+      SELECT COUNT(*) AS total
+      FROM qr_codes q
+      JOIN class_enrollments ce ON ce.teacher_id = q.teacher_id
+      WHERE ce.student_id = ?
+    `,
+    args: [studentId]
+  });
+  const allTimeAttended = await db.execute({
+    sql: `
+      SELECT COUNT(*) AS attended
+      FROM attendance a
+      JOIN qr_codes q ON a.qr_id = q.id
+      JOIN class_enrollments ce ON ce.teacher_id = q.teacher_id AND ce.student_id = a.student_id
+      WHERE a.student_id = ?
+    `,
+    args: [studentId]
+  });
 
   const monthlyTotal = totalResult.rows[0]?.total || 0;
   const monthlyAttended = attendedResult.rows[0]?.attended || 0;

@@ -14,6 +14,14 @@ async function hasAttendanceForStudent(studentId, code) {
   return !!result.rows[0];
 }
 
+async function isStudentEnrolled(studentId, teacherId) {
+  const result = await db.execute(
+    'SELECT id FROM class_enrollments WHERE student_id = ? AND teacher_id = ?',
+    [studentId, teacherId]
+  );
+  return !!result.rows[0];
+}
+
 async function getSessionAttendance(code) {
   const result = await db.execute(`
     SELECT u.name as student_name,
@@ -108,6 +116,7 @@ module.exports = {
   findActiveSession,
   createAttendance,
   hasAttendanceForStudent,
+  isStudentEnrolled,
   getSessionAttendance,
   getLiveAttendance,
   getTeacherAttendance,
