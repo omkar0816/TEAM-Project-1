@@ -622,7 +622,18 @@
       .team-info-container { padding: 2.5rem 1.25rem 1.25rem; }
       .team-members-grid { grid-template-columns: 1fr; }
       .member-details { min-height: 0; }
-      .team-info-toggle-btn { left: 1.25rem; bottom: 1.25rem; }
+      .team-info-toggle-btn {
+        top: 50%;
+        right: 1.25rem;
+        bottom: auto;
+        left: auto;
+        transform: translateY(-50%);
+      }
+
+      .team-info-toggle-btn:hover,
+      .team-info-toggle-btn:focus-visible {
+        transform: translateY(calc(-50% - 3px));
+      }
     }
 
     /* ── Animations ── */
