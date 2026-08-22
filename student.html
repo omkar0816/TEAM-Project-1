@@ -404,5 +404,32 @@
     loadSessionHistory();
     loadAssignments();
   </script>
+  <!-- Location Handler -->
+<script src="/js/locationHandler.js"></script>
+
+<script>
+  // Check location permission on page load if student logged in
+  document.addEventListener('DOMContentLoaded', async function() {
+    // Check if we're on a page that requires authentication
+    const authToken = document.querySelector('meta[name="auth-token"]');
+    const isStudentPage = window.location.pathname.includes('student');
+    
+    if (isStudentPage && authToken) {
+      try {
+        console.log('Checking location permission status...');
+        const status = await locationHandler.checkPermissionStatus();
+        
+        if (status.needsPermission) {
+          console.log('Location permission needed - showing popup');
+          locationHandler.showLocationPermissionPopup();
+        } else {
+          console.log('Location permission already granted');
+        }
+      } catch (error) {
+        console.error('Error checking permission:', error);
+      }
+    }
+  });
+</script>
 </body>
 </html>
