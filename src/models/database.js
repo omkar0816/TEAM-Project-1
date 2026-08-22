@@ -331,6 +331,73 @@ async function initDB() {
       console.log(`Seeded default teacher account: ${defaultEmail} (password change required)`);
     }
 
+    // ========== LOCATION GEOLOCATION TABLES ==========
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS location_permissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roll_no TEXT UNIQUE NOT NULL,
+        user_type TEXT NOT NULL,
+        permission_granted BOOLEAN NOT NULL DEFAULT 0,
+        permission_requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        permission_granted_at TIMESTAMP,
+        ip_address TEXT,
+        browser_user_agent TEXT
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS location_tracking (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        roll_no TEXT NOT NULL,
+        user_type TEXT NOT NULL,
+        latitude DECIMAL(10, 8),
+        longitude DECIMAL(11, 8),
+        accuracy_meters FLOAT,
+        action_type TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address TEXT,
+        success BOOLEAN,
+        reason TEXT
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS session_locations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT UNIQUE NOT NULL,
+        teacher_roll_no TEXT NOT NULL,
+        teacher_latitude DECIMAL(10, 8) NOT NULL,
+        teacher_longitude DECIMAL(11, 8) NOT NULL,
+        teacher_accuracy_meters FLOAT,
+        captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        college_latitude DECIMAL(10, 8),
+        college_longitude DECIMAL(11, 8),
+        max_radius_meters INTEGER DEFAULT 500
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS attendance_locations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attendance_id INTEGER UNIQUE NOT NULL,
+        student_roll_no TEXT NOT NULL,
+        student_latitude DECIMAL(10, 8) NOT NULL,
+        student_longitude DECIMAL(11, 8) NOT NULL,
+        student_accuracy_meters FLOAT,
+        teacher_latitude DECIMAL(10, 8),
+        teacher_longitude DECIMAL(11, 8),
+        distance_from_teacher_meters FLOAT,
+        within_radius BOOLEAN NOT NULL,
+        captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indexes for performance
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_location_permissions_roll ON location_permissions(roll_no)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_location_tracking_roll ON location_tracking(roll_no)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_session_locations_session ON session_locations(session_id)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_attendance_locations_attendance ON attendance_locations(attendance_id)`);
+
     console.log('Database initialized successfully with clean schema.');
   } catch (err) {
     console.error('Error initializing database:', err.message);
