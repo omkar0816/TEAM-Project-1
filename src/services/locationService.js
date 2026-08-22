@@ -1,7 +1,7 @@
 // ========== services/locationService.js ==========
 // COPY THIS ENTIRE FILE TO: services/locationService.js
 
-const db = require('../database');
+const db = require('../models/database');
 
 class LocationService {
   

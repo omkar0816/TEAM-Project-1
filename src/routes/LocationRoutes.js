@@ -1,7 +1,8 @@
 // src/routes/locationRoutes.js
 const express = require('express');
 const LocationService = require('../services/locationService');
-const { requireAuth, requireRole } = require('../middleware/requireAuth');
+const requireAuth = require('../middleware/requireAuth');
+const requireRole = require('../middleware/requireRole');
 
 const router = express.Router();
 

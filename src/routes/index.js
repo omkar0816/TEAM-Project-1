@@ -4,7 +4,7 @@ const attendanceRoutes = require('./attendanceRoutes');
 const sessionRoutes = require('./sessionRoutes');
 const passwordRoutes = require('./passwordRoutes');
 const bootstrapRoutes = require('./bootstrapRoutes');
-const locationRoutes = require('./locationRoutes');
+const locationRoutes = require('./LocationRoutes');
 
 const router = express.Router();
 router.use(bootstrapRoutes);
