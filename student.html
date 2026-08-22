@@ -181,29 +181,207 @@
         <button onclick="logout()" class="btn-secondary text-xs sm:text-sm">Logout</button>
       </div>
     </header>
+    <section class="card">
+    <h2 class="serif text-lg sm:text-xl text-yellow-400 mb-3 sm:mb-4">Mark Attendance</h2>
+<script>
+let currentSessionCode = null; // Stores the code of the clicked class
 
-    <!-- Main Content -->
-    <main class="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6">
-      
-      <!-- Mark Attendance Section -->
-      <section class="card">
-        <h2 class="serif text-lg sm:text-xl text-yellow-400 mb-3 sm:mb-4">Mark Attendance</h2>
-        <p class="text-xs sm:text-sm text-gray-400 mb-4">Enter the 5-digit code from your teacher:</p>
-        <div class="flex flex-col sm:flex-row gap-3">
-          <input 
-            type="text" 
-            id="codeInput" 
-            class="input-field flex-1"
-            placeholder="00000"
-            maxlength="5"
-            pattern="[0-9]{5}"
-            inputmode="numeric"
-          >
-          <button onclick="markAttendance()" class="btn-primary w-full sm:w-auto whitespace-nowrap text-sm sm:text-base">
-            Mark
-          </button>
-          <script src="/js/locationHandler.js"></script>
+// 1. Fetch Active Sessions on Page Load
+async function loadActiveSessions() {
+    try {
+        // You will need a backend route that returns today's active sessions
+        const response = await fetch('/api/attendance/active-sessions');
+        const sessions = await response.json();
+        
+        const listContainer = document.getElementById('active-sessions-list');
+        listContainer.innerHTML = ''; // Clear loading text
 
+        if (sessions.length === 0) {
+            listContainer.innerHTML = '<p class="text-red-400 text-sm">No active sessions right now.</p>';
+            return;
+        }
+
+        // Create a button for each active session
+        sessions.forEach(session => {
+            const btn = document.createElement('button');
+            btn.className = "w-full bg-gray-800 border border-gray-700 p-4 rounded-md text-left hover:bg-gray-700 transition-colors";
+            btn.innerHTML = `
+                <span class="block font-bold text-yellow-400">${session.subject_name || 'Class Session'}</span>
+                <span class="block text-sm text-gray-400">Teacher: ${session.teacher_name || 'Unknown'}</span>
+            `;
+            // When clicked, open the camera and pass this session's code
+            btn.onclick = () => openCameraForSession(session.code);
+            listContainer.appendChild(btn);
+        });
+    } catch (error) {
+        console.error("Failed to load sessions", error);
+    }
+}
+
+// 2. Hide List & Open Camera
+function openCameraForSession(code) {
+    currentSessionCode = code; // Save the code globally
+    
+    // Toggle UI visibility
+    document.getElementById('session-list-container').classList.add('hidden');
+    document.getElementById('punch-in-section').classList.remove('hidden');
+    
+    // Start your hardware (Assuming you have these functions from our previous step)
+    startCamera(); 
+    
+}
+
+// 3. Cancel and Go Back
+function cancelPunchIn() {
+    currentSessionCode = null;
+    
+    // Toggle UI visibility back
+    document.getElementById('session-list-container').classList.remove('hidden');
+    document.getElementById('punch-in-section').classList.add('hidden');
+    
+    // Optional: Stop the camera stream to save battery
+    const stream = document.getElementById('camera-feed').srcObject;
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+// 4. Update the actual Punch-In fetch call
+document.getElementById('punch-in-btn').addEventListener('click', async () => {
+    // ... (Your face matching logic goes here) ...
+
+    // When making the final POST request, use the currentSessionCode!
+    fetch('/mark-attendance-post', { // Or whatever your route is named
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            code: currentSessionCode, // Automatically injected!
+            latitude: userLat,
+            longitude: userLon,
+            faceData: liveDescriptor 
+        })
+    });
+});
+
+// Run this when the page loads
+window.onload = () => {
+    loadActiveSessions();
+};
+</script>
+
+
+    
+    <!-- SECTION A: The List of Active Sessions -->
+    <div id="session-list-container">
+        <p class="text-xs sm:text-sm text-gray-400 mb-4">Select your active class to punch in:</p>
+        <div id="active-sessions-list" class="flex flex-col gap-3">
+            <!-- Sessions will be injected here by JavaScript -->
+            <p class="text-gray-500 text-sm italic">Loading active sessions...</p>
+        </div>
+    </div>
+
+    <!-- SECTION B: The Camera & GPS (Hidden by default using Tailwind's 'hidden' class) -->
+    <div id="punch-in-section" class="hidden flex flex-col gap-3 items-center">
+        <p class="text-xs sm:text-sm text-gray-400 mb-2">Please look at the camera to verify your identity.</p>
+        
+        <video id="camera-feed" width="320" height="240" autoplay class="rounded-md border border-gray-600"></video>
+        <canvas id="snapshot" width="320" height="240" style="display:none;"></canvas>
+        
+        <p id="status-message" class="text-sm font-semibold text-center"></p>
+
+        <div class="flex w-full gap-2 mt-2">
+            <button id="punch-in-btn" class="btn-primary flex-1 whitespace-nowrap text-sm sm:text-base" disabled>
+                Punch In
+            </button>
+            <!-- A button to go back to the class list -->
+            <button onclick="cancelPunchIn()" class="bg-gray-700 hover:bg-gray-600 text-white rounded-md px-4 py-2 text-sm sm:text-base">
+                Cancel
+            </button>
+        </div>
+    </div>
+</section>
+<!-- Add these elements where the student punches in -->
+<div id="punch-in-section">
+    <video id="camera-feed" width="320" height="240" autoplay></video>
+    <canvas id="snapshot" width="320" height="240" style="display:none;"></canvas>
+    <button id="punch-in-btn" disabled>Verify Location & Punch In</button>
+    <p id="status-message"></p>
+</div>
+
+<script>
+    // Target Coordinates (COEP Campus)
+    const COLLEGE_LAT = 18.5293;
+    const COLLEGE_LON = 73.8565;
+    const MAX_DISTANCE_METERS = 500; // Allow attendance within a 500m radius
+
+    const video = document.getElementById('camera-feed');
+    const canvas = document.getElementById('snapshot');
+    const punchInBtn = document.getElementById('punch-in-btn');
+    const statusMsg = document.getElementById('status-message');
+    
+    let userLat, userLon;
+
+    // 1. Request Camera Access on Load
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        } catch (err) {
+            statusMsg.innerText = "Camera access is required for attendance.";
+            statusMsg.style.color = "red";
+        }
+    }
+
+    // 2. Calculate distance using Haversine formula
+    function getDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3; // Earth's radius in meters
+        const φ1 = lat1 * Math.PI/180;
+        const φ2 = lat2 * Math.PI/180;
+        const Δφ = (lat2-lat1) * Math.PI/180;
+        const Δλ = (lon2-lon1) * Math.PI/180;
+
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; 
+    }
+
+    // 3. Handle Punch-in
+    punchInBtn.addEventListener('click', () => {
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL('image/jpeg'); // Captures face
+
+        // Send to Node.js backend
+        fetch('/api/attendance/punch-in', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                latitude: userLat,
+                longitude: userLon,
+                image: imageData,
+                studentId: 1 // Replace with dynamic logged-in student ID
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                statusMsg.innerText = "Attendance marked successfully!";
+            } else {
+                statusMsg.innerText = "Failed: " + data.message;
+            }
+        });
+    });
+
+    // Initialize
+    window.onload = () => {
+        startCamera();
+       
+    };
+</script>
+
+   
 <script>
   // Hook into attendance form submission
   async function handleAttendanceSubmit(event) {

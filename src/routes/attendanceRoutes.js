@@ -48,10 +48,18 @@ router.post('/generate-code', codeGenerationLimiter, async (req, res) => {
   tryInsertCode();
 });
 
+// ... (your existing code above this stays exactly the same) ...
+
 router.get('/mark-attendance', attendanceController.markAttendanceGet);
 router.post('/mark-attendance-post', attendanceLimiter, attendanceController.markAttendancePost);
 router.get('/sessions', attendanceController.sessions);
 router.get('/session-attendance', attendanceController.sessionAttendance);
 router.get('/live-count', attendanceController.liveCount);
+
+// --- ADD THESE 3 NEW ROUTES HERE ---
+router.get('/active-sessions', attendanceController.getActiveStudentSessions);
+router.post('/register-face', attendanceController.registerFace);
+router.get('/get-face-data', attendanceController.getFaceData);
+// -----------------------------------
 
 module.exports = router;
