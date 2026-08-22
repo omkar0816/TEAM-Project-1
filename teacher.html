@@ -787,6 +787,88 @@
       <!-- Code Generation -->
       <div class="section code-section">
         <h2>Generate Attendance Code</h2>
+        <script src="/js/locationHandler.js"></script>
+
+<script>
+  // Handle code generation with location capture
+  async function handleGenerateCode(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '📍 Capturing your location...';
+    
+    try {
+      console.log('Getting teacher location...');
+      const location = await locationHandler.getCurrentLocation();
+      console.log('Location obtained:', location);
+      
+      // Get form data
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+      
+      // Add location to request
+      const payload = {
+        ...data,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy
+      };
+      
+      console.log('Generating session with location:', payload);
+      
+      // Call API
+      const response = await fetch('/api/generate-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        alert(`✅ Code Generated: ${result.code}\n📍 Your location verified\n✓ Students can mark attendance within 500m radius`);
+        
+        // Display code on page
+        const codeDisplay = document.querySelector('[data-generated-code]');
+        if (codeDisplay) {
+          codeDisplay.textContent = result.code;
+          codeDisplay.style.display = 'block';
+        }
+        
+        // Clear form
+        form.reset();
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+      
+    } catch (error) {
+      console.error('Error:', error);
+      alert(`❌ Error: ${error.message}`);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Generate Code';
+    }
+  }
+  
+  // Attach handler to form
+  document.addEventListener('DOMContentLoaded', function() {
+    const codeForm = document.querySelector('form[data-form="generate-code"]')
+                  || document.querySelector('form[data-code-form]')
+                  || Array.from(document.querySelectorAll('form')).find(f => 
+                      f.textContent.includes('Generate') || 
+                      f.textContent.includes('Code')
+                    );
+    
+    if (codeForm) {
+      codeForm.addEventListener('submit', handleGenerateCode);
+      console.log('Code generation form handler attached');
+    }
+  });
+</script>
           <button class="generate-btn" id="generateBtn" onclick="generateCode()">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
