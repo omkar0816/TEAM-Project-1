@@ -6,7 +6,8 @@ async function findActiveSession(code, now) {
 }
 
 async function createAttendance(studentId, code) {
-  await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [studentId, code]);
+  const result = await db.execute('INSERT INTO attendance (student_id, qr_id) VALUES (?, ?)', [studentId, code]);
+  return result.lastInsertRowid !== undefined ? Number(result.lastInsertRowid) : null;
 }
 
 async function hasAttendanceForStudent(studentId, code) {
