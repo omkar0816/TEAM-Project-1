@@ -1,5 +1,6 @@
 const attendanceService = require('../services/attendanceService');
 const attendanceRepository = require('../repositories/attendanceRepository');
+const LocationService = require('../services/locationService');
 
 async function markAttendanceGet(req, res) {
   const { code } = req.query;
@@ -7,11 +8,9 @@ async function markAttendanceGet(req, res) {
 
   try {
     if (req.session.userId && req.session.role === 'student') {
-      const result = await attendanceService.markAttendance(req.session.userId, code);
-      if (!result.success) {
-        return res.status(result.status || 500).send(result.message);
-      }
-      return res.send('Attendance marked successfully!');
+      // GET link flow (e.g. from a scanned/shared link) has no location payload;
+      // route it through the same location-aware check as the POST flow.
+      return res.status(400).send('Please open the attendance page and mark attendance from there so your location can be verified.');
     }
 
     const safeCode = encodeURIComponent(code);
@@ -55,15 +54,26 @@ async function markAttendancePost(req, res) {
     });
   }
 
-  const { code } = req.body;
+  const { code, latitude, longitude, accuracy } = req.body;
   if (!code) return res.status(400).send('Invalid code');
 
+  const permission = await LocationService.checkLocationPermissionStatus(req.session.userId, 'student');
+  if (!permission.permissionGranted) {
+    return res.status(403).send('Location permission is required to mark attendance. Please log in again and allow location access.');
+  }
+
   try {
-    const result = await attendanceService.markAttendance(req.session.userId, code);
+    const location = {
+      latitude,
+      longitude,
+      accuracy,
+      ipAddress: req.ip || req.connection.remoteAddress,
+    };
+    const result = await attendanceService.markAttendance(req.session.userId, code, location);
     if (!result.success) {
       return res.status(result.status || 500).send(result.message);
     }
-    return res.send('Attendance marked successfully!');
+    return res.send(`Attendance marked successfully! (${result.distanceMeters}m from teacher)`);
   } catch (err) {
     console.error('Mark attendance POST error:', err);
     return res.status(500).send('Error marking attendance');
