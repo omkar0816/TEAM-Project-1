@@ -24,6 +24,15 @@ if (isProduction && process.env.DEFAULT_TEACHER_PASSWORD === 'TempPass123!') {
 // If running behind a proxy (common in cloud deployments),
 app.set('trust proxy', trustProxy ? 1 : 0);
 
+if (isProduction) {
+  app.use((req, res, next) => {
+    if (req.header('x-forwarded-proto') !== 'https') {
+      return res.redirect(307, `https://${req.header('host')}${req.url}`);
+    }
+    next();
+  });
+}
+
 // bich ka mamla
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -45,6 +54,9 @@ app.use(session({
 
 
 app.use(express.static(path.join(__dirname)));
+// student.html / teacher.html load the location handler from /js/locationHandler.js;
+// serve the /public folder at the root so that path resolves.
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Mount API routes
 app.use(routes);
@@ -70,15 +82,3 @@ app.use((err, req, res, next) => {
     process.exit(1);
   }
 })();
-
-  if (process.env.NODE_ENV === 'production') {
-    app.use((req, res, next) => {
-      if (req.header('x-forwarded-proto') !== 'https') {
-        res.redirect(307, `https://${req.header('host')}${req.url}`);
-      } else next();
-    });
-    app.set('trust proxy', 1);
-  }
-   cookie: {
-    maxAge: 30 * 60 * 1000  //  Match sessionStore
-   }
