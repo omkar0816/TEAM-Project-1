@@ -33,8 +33,7 @@ class LocationHandler {
   }
 
   async getBaseApiPath() {
-    const role = await this.getCurrentRole();
-    return role === 'teacher' ? '/api/teachers' : '/api/students';
+    return '/api';
   }
 
   /**
@@ -63,7 +62,7 @@ class LocationHandler {
                 resolve(true);
               } else {
                 console.error('Failed to store location:', response.error);
-                alert('Failed to store location. Please try again.');
+                alert('Failed to save location. Your session may have expired or the request was rejected. Please refresh the page or log in again.');
                 resolve(false);
               }
             })
