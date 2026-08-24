@@ -17,17 +17,14 @@ class LocationHandler {
     const bodyRole = document.body && document.body.dataset && document.body.dataset.userType;
     if (bodyRole) return bodyRole;
 
-    const path = window.location.pathname.toLowerCase();
-    if (path.includes('teacher')) return 'teacher';
-    if (path.includes('student')) return 'student';
-
     try {
       const response = await fetch('/check-session', { credentials: 'include' });
       if (!response.ok) return 'student';
       const data = await response.json();
-      return data.role || 'student';
+      if (data && data.role) return data.role;
+      return 'student';
     } catch (error) {
-      console.warn('Could not determine active role; defaulting to student.', error);
+      console.warn('Could not determine active role from the session; defaulting to student.', error);
       return 'student';
     }
   }

@@ -1055,15 +1055,35 @@
     clearErrors();
     let ok = true;
 
-    if (currentRole === 'student') {
+    const email = document.getElementById('loginEmail').value.trim();
+    const prn = document.getElementById('loginPrn').value.trim();
+    const password = document.getElementById('loginPw').value;
+
+    // Auto-detect role based on which fields are visible AND filled
+    const hasValidEmail = email && /\S+@\S+\.\S+/.test(email);
+    const hasValidPassword = password && password.trim().length > 0;
+    
+    // Check if PRN field is visible (not hidden)
+    const prnFieldVisible = document.getElementById('fieldLoginPrn').style.display !== 'none';
+    
+    // Determine the role based on visible form fields
+    let detectedRole = 'teacher'; // default to teacher
+    if (prnFieldVisible && prn) {
+      // PRN field is visible and user filled it in - they're a student
+      detectedRole = 'student';
+    } else if (prnFieldVisible) {
+      // PRN field is visible but empty - student mode, they just haven't filled it in yet
+      detectedRole = 'student';
+    } else {
+      // PRN field is hidden - teacher mode
+      detectedRole = 'teacher';
+    }
+
+    if (detectedRole === 'student') {
       // Student login: email + PRN + password
-      const email = document.getElementById('loginEmail').value.trim();
-      const prn = document.getElementById('loginPrn').value.trim();
-      const password = document.getElementById('loginPw').value;
-      
-      if (!email || !/\S+@\S+\.\S+/.test(email)) { setError('fieldLoginEmail', true); ok = false; }
+      if (!hasValidEmail) { setError('fieldLoginEmail', true); ok = false; }
       if (!prn) { setError('fieldLoginPrn', true); ok = false; }
-      if (!password) { setError('fieldLoginPw', true); ok = false; }
+      if (!hasValidPassword) { setError('fieldLoginPw', true); ok = false; }
 
       if (ok) {
         const body = { role: 'student', email, prn, password };
@@ -1100,14 +1120,11 @@
       }
     } else {
       // Teacher login: email + password
-      const email = document.getElementById('loginEmail').value.trim();
-      const pw = document.getElementById('loginPw').value;
-
-      if (!email || !/\S+@\S+\.\S+/.test(email)) { setError('fieldLoginEmail', true); ok = false; }
-      if (!pw) { setError('fieldLoginPw', true); ok = false; }
+      if (!hasValidEmail) { setError('fieldLoginEmail', true); ok = false; }
+      if (!hasValidPassword) { setError('fieldLoginPw', true); ok = false; }
 
       if (ok) {
-        const body = { role: 'teacher', email, password: pw };
+        const body = { role: 'teacher', email, password };
         
         fetch('/login', {
           method: 'POST',

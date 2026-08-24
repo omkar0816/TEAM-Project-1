@@ -203,96 +203,6 @@
           <button onclick="markAttendance()" class="btn-primary w-full sm:w-auto whitespace-nowrap text-sm sm:text-base">
             Mark
           </button>
-          <script src="/js/locationHandler.js"></script>
-
-<script>
-  // Hook into attendance form submission
-  async function handleAttendanceSubmit(event) {
-    event.preventDefault();
-    
-    const form = event.target;
-    const codeInput = form.querySelector('[name="code"]') || form.querySelector('[name="attendance_code"]');
-    const sessionInput = form.querySelector('[name="sessionId"]') || form.querySelector('[name="session_id"]');
-    const submitBtn = form.querySelector('button[type="submit"]');
-    
-    if (!codeInput || !sessionInput) {
-      console.error('Form inputs not found');
-      return;
-    }
-    
-    const code = codeInput.value;
-    const sessionId = sessionInput.value;
-    
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '📍 Verifying your location...';
-    
-    try {
-      console.log('Getting location...');
-      const location = await locationHandler.getCurrentLocation();
-      console.log('Location obtained:', location);
-      
-      console.log('Validating location with teacher...');
-      const validation = await locationHandler.validateAttendanceLocation(
-        sessionId,
-        location.latitude,
-        location.longitude,
-        location.accuracy
-      );
-      console.log('Validation result:', validation);
-      
-      if (!validation.isValid) {
-        alert(`❌ ${validation.error}`);
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = 'Mark Attendance';
-        return;
-      }
-      
-      submitBtn.innerHTML = '✅ Location verified! Marking attendance...';
-      
-      // Call your existing mark-attendance API
-      const response = await fetch('/api/mark-attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          code: code,
-          sessionId: sessionId,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: location.accuracy
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        alert('✅ Attendance marked successfully!');
-        location.reload();
-      } else {
-        alert(`❌ ${result.error}`);
-      }
-      
-    } catch (error) {
-      console.error('Error:', error);
-      alert(`❌ Error: ${error.message}`);
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = 'Mark Attendance';
-    }
-  }
-  
-  // Find your attendance form and attach the handler
-  document.addEventListener('DOMContentLoaded', function() {
-    const attendanceForm = document.querySelector('form[data-form="attendance"]') 
-                        || document.querySelector('form')
-                        || document.querySelector('[data-attendance-form]');
-    
-    if (attendanceForm) {
-      attendanceForm.addEventListener('submit', handleAttendanceSubmit);
-      console.log('Attendance form handler attached');
-    }
-  });
-</script>
         </div>
       </section>
 
@@ -340,9 +250,19 @@
 
   <script>
     // Check session on load
-    fetch('/check-session', { credentials: 'same-origin' }).then(res => res.json()).then(data => {
+    fetch('/check-session', { credentials: 'same-origin' }).then(res => res.json()).then(async data => {
       if (!data.loggedIn || data.role !== 'student') {
         window.location.href = '/';
+        return;
+      }
+
+      try {
+        const status = await locationHandler.checkPermissionStatus();
+        if (status.needsPermission) {
+          locationHandler.showLocationPermissionPopup();
+        }
+      } catch (e) {
+        console.error('Error checking location permission:', e);
       }
     }).catch(() => window.location.href = '/');
 
@@ -361,8 +281,18 @@
         return;
       }
 
+      const markBtn = document.querySelector('[onclick="markAttendance()"]');
+      if (markBtn) markBtn.disabled = true;
+
       try {
-        const location = await locationHandler.getCurrentLocation();
+        let location;
+        try {
+          location = await locationHandler.getCurrentLocation();
+        } catch (locErr) {
+          alert('We need your location to verify attendance: ' + locErr.message);
+          return;
+        }
+
         if (location.accuracy > 150) {
           alert(`GPS accuracy too poor (${Math.round(location.accuracy)}m). Please move to an open area and try again.`);
           return;
@@ -398,6 +328,8 @@
       } catch (error) {
         alert('Error marking attendance. Please try again.');
         console.error('Mark attendance error:', error);
+      } finally {
+        if (markBtn) markBtn.disabled = false;
       }
     }
 
@@ -512,32 +444,5 @@
     loadSessionHistory();
     loadAssignments();
   </script>
-  <!-- Location Handler -->
-<script src="/js/locationHandler.js"></script>
-
-<script>
-  // Check location permission on page load if student logged in
-  document.addEventListener('DOMContentLoaded', async function() {
-    // Check if we're on a page that requires authentication
-    const authToken = document.querySelector('meta[name="auth-token"]');
-    const isStudentPage = window.location.pathname.includes('student');
-    
-    if (isStudentPage && authToken) {
-      try {
-        console.log('Checking location permission status...');
-        const status = await locationHandler.checkPermissionStatus();
-        
-        if (status.needsPermission) {
-          console.log('Location permission needed - showing popup');
-          locationHandler.showLocationPermissionPopup();
-        } else {
-          console.log('Location permission already granted');
-        }
-      } catch (error) {
-        console.error('Error checking permission:', error);
-      }
-    }
-  });
-</script>
 </body>
 </html>
