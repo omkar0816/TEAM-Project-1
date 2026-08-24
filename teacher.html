@@ -999,6 +999,14 @@
         loadAttendance();
         loadSessions();
         loadAssignments();
+        try {
+          const status = await locationHandler.checkPermissionStatus();
+          if (status.needsPermission) {
+            locationHandler.showLocationPermissionPopup();
+          }
+        } catch (error) {
+          console.error('Error checking teacher location permission:', error);
+        }
       }
     });
 
@@ -1053,14 +1061,26 @@
       btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="animate-spin"></circle></svg> Generating...';
 
       try {
+        const location = await locationHandler.getCurrentLocation();
+        if (location.accuracy > 150) {
+          alert(`GPS accuracy too poor (${Math.round(location.accuracy)}m). Please move to an open area and try again.`);
+          return;
+        }
+
         const response = await fetch('/generate-code', { 
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subject })
+          body: JSON.stringify({
+            subject,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+          })
         });
         if (!response.ok) {
-          throw new Error('Failed to generate code');
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to generate code');
         }
         const data = await response.json();
 

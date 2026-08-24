@@ -5,6 +5,8 @@ const sessionRoutes = require('./sessionRoutes');
 const passwordRoutes = require('./passwordRoutes');
 const bootstrapRoutes = require('./bootstrapRoutes');
 const locationRoutes = require('./LocationRoutes');
+const studentRoutes = require('./students');
+const teacherRoutes = require('./teachers');
 
 const router = express.Router();
 router.use(bootstrapRoutes);
@@ -13,4 +15,6 @@ router.use(attendanceRoutes);
 router.use(sessionRoutes);
 router.use(passwordRoutes);
 router.use('/api', locationRoutes);
+router.use('/api/students', studentRoutes);
+router.use('/api/teachers', teacherRoutes);
 module.exports = router;

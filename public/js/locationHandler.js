@@ -13,6 +13,17 @@ class LocationHandler {
     console.log('LocationHandler initialized. Geolocation supported:', this.isLocationSupported);
   }
 
+  getCurrentRole() {
+    const path = window.location.pathname.toLowerCase();
+    if (path.includes('teacher')) return 'teacher';
+    if (path.includes('student')) return 'student';
+    return (document.body && document.body.dataset.userType) || 'student';
+  }
+
+  getBaseApiPath() {
+    return this.getCurrentRole() === 'teacher' ? '/api/teachers' : '/api/students';
+  }
+
   /**
    * ✅ REQUEST LOCATION PERMISSION AFTER LOGIN
    * Shows popup, handles allow/deny
@@ -75,7 +86,8 @@ class LocationHandler {
    */
   async checkPermissionStatus() {
     try {
-      const response = await fetch('/api/students/location/permission-status', {
+      const endpoint = `${this.getBaseApiPath()}/location/permission-status`;
+      const response = await fetch(endpoint, {
         method: 'GET',
         credentials: 'include'
       });
@@ -101,7 +113,8 @@ class LocationHandler {
   async storeLocationPermission(latitude, longitude, accuracy) {
     try {
       console.log('Storing location permission...');
-      const response = await fetch('/api/students/location/grant-permission', {
+      const endpoint = `${this.getBaseApiPath()}/location/grant-permission`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -137,7 +150,8 @@ class LocationHandler {
   async denyLocationPermission() {
     try {
       console.log('Denying location permission and logging out...');
-      const response = await fetch('/api/students/location/deny-permission', {
+      const endpoint = `${this.getBaseApiPath()}/location/deny-permission`;
+      const response = await fetch(endpoint, {
         method: 'POST',
         credentials: 'include'
       });
@@ -145,17 +159,16 @@ class LocationHandler {
       const data = await response.json();
       console.log('Denial confirmed:', data);
       
-      // Show message and redirect after 2 seconds
       alert('Location access is required to use the attendance system.\nYou have been logged out.\n\nPlease login again and enable location to continue.');
       
       setTimeout(() => {
-        window.location.href = '/login';
-      }, 2000);
+        window.location.href = '/';
+      }, 1000);
 
       return data;
     } catch (error) {
       console.error('Error denying location:', error);
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   }
 
@@ -307,27 +320,33 @@ class LocationHandler {
   async handleAllowPermission() {
     console.log('User clicked Allow...');
     const btn = document.querySelector('.btn-allow');
-    btn.disabled = true;
-    btn.innerHTML = '⏳ Getting your location...';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Getting your location...';
+    }
 
     const allowed = await this.requestLocationPermission();
     
     if (allowed) {
       console.log('Location permission granted successfully');
-      // Hide modal and redirect to dashboard
       const modal = document.getElementById('locationPermissionModal');
-      modal.style.opacity = '0';
-      modal.style.transition = 'opacity 0.5s ease';
+      if (modal) {
+        modal.style.opacity = '0';
+        modal.style.transition = 'opacity 0.5s ease';
+      }
       
       setTimeout(() => {
-        modal.remove();
-        console.log('Redirecting to student dashboard...');
-        window.location.href = '/student-dashboard';
+        if (modal) modal.remove();
+        const redirectTarget = this.getCurrentRole() === 'teacher' ? '/teacher.html' : '/student.html';
+        console.log('Redirecting to dashboard...');
+        window.location.href = redirectTarget;
       }, 500);
     } else {
       console.log('Location permission failed');
-      btn.disabled = false;
-      btn.innerHTML = '✅ Allow Location Access';
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '✅ Allow Location Access';
+      }
       alert('❌ Failed to get location. Please check:\n- Browser location permission\n- GPS/Location services enabled\n- You have internet connection');
     }
   }

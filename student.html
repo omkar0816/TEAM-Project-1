@@ -354,21 +354,36 @@
     }
 
     async function markAttendance() {
-      
       const code = document.getElementById('codeInput').value.trim();
-      
+
       if (!code || code.length !== 5 || !/^\d{5}$/.test(code)) {
         alert('Please enter a valid 5-digit code');
         return;
-        
       }
 
       try {
+        const location = await locationHandler.getCurrentLocation();
+        if (location.accuracy > 150) {
+          alert(`GPS accuracy too poor (${Math.round(location.accuracy)}m). Please move to an open area and try again.`);
+          return;
+        }
+
+        const validation = await locationHandler.validateAttendanceLocation(code, location.latitude, location.longitude, location.accuracy);
+        if (!validation.isValid) {
+          alert(validation.error || validation.message || 'Location check failed');
+          return;
+        }
+
         const response = await fetch('/mark-attendance-post', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify({ code })
+          body: JSON.stringify({
+            code,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            accuracy: location.accuracy,
+          })
         });
 
         const msg = await response.text();
