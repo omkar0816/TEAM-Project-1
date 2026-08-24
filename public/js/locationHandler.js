@@ -13,15 +13,28 @@ class LocationHandler {
     console.log('LocationHandler initialized. Geolocation supported:', this.isLocationSupported);
   }
 
-  getCurrentRole() {
+  async getCurrentRole() {
+    const bodyRole = document.body && document.body.dataset && document.body.dataset.userType;
+    if (bodyRole) return bodyRole;
+
     const path = window.location.pathname.toLowerCase();
     if (path.includes('teacher')) return 'teacher';
     if (path.includes('student')) return 'student';
-    return (document.body && document.body.dataset.userType) || 'student';
+
+    try {
+      const response = await fetch('/check-session', { credentials: 'include' });
+      if (!response.ok) return 'student';
+      const data = await response.json();
+      return data.role || 'student';
+    } catch (error) {
+      console.warn('Could not determine active role; defaulting to student.', error);
+      return 'student';
+    }
   }
 
-  getBaseApiPath() {
-    return this.getCurrentRole() === 'teacher' ? '/api/teachers' : '/api/students';
+  async getBaseApiPath() {
+    const role = await this.getCurrentRole();
+    return role === 'teacher' ? '/api/teachers' : '/api/students';
   }
 
   /**
@@ -46,6 +59,7 @@ class LocationHandler {
             .then((response) => {
               if (response.success) {
                 console.log('✅ Location permission stored successfully');
+                sessionStorage.removeItem('locationPermissionModalShown');
                 resolve(true);
               } else {
                 console.error('Failed to store location:', response.error);
@@ -86,7 +100,8 @@ class LocationHandler {
    */
   async checkPermissionStatus() {
     try {
-      const endpoint = `${this.getBaseApiPath()}/location/permission-status`;
+      const basePath = await this.getBaseApiPath();
+      const endpoint = `${basePath}/location/permission-status`;
       const response = await fetch(endpoint, {
         method: 'GET',
         credentials: 'include'
@@ -113,7 +128,8 @@ class LocationHandler {
   async storeLocationPermission(latitude, longitude, accuracy) {
     try {
       console.log('Storing location permission...');
-      const endpoint = `${this.getBaseApiPath()}/location/grant-permission`;
+      const basePath = await this.getBaseApiPath();
+      const endpoint = `${basePath}/location/grant-permission`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -150,7 +166,8 @@ class LocationHandler {
   async denyLocationPermission() {
     try {
       console.log('Denying location permission and logging out...');
-      const endpoint = `${this.getBaseApiPath()}/location/deny-permission`;
+      const basePath = await this.getBaseApiPath();
+      const endpoint = `${basePath}/location/deny-permission`;
       const response = await fetch(endpoint, {
         method: 'POST',
         credentials: 'include'
@@ -263,6 +280,11 @@ class LocationHandler {
    * Beautiful modal asking user to enable location
    */
   showLocationPermissionPopup() {
+    if (sessionStorage.getItem('locationPermissionModalShown') === '1') {
+      return;
+    }
+    sessionStorage.setItem('locationPermissionModalShown', '1');
+
     console.log('Showing location permission popup...');
 
     const modal = document.createElement('div');
@@ -335,9 +357,10 @@ class LocationHandler {
         modal.style.transition = 'opacity 0.5s ease';
       }
       
-      setTimeout(() => {
+      setTimeout(async () => {
         if (modal) modal.remove();
-        const redirectTarget = this.getCurrentRole() === 'teacher' ? '/teacher.html' : '/student.html';
+        const role = await this.getCurrentRole();
+        const redirectTarget = role === 'teacher' ? '/teacher.html' : '/student.html';
         console.log('Redirecting to dashboard...');
         window.location.href = redirectTarget;
       }, 500);
@@ -366,6 +389,7 @@ class LocationHandler {
 
     if (confirmed) {
       console.log('User confirmed denial. Logging out...');
+      sessionStorage.removeItem('locationPermissionModalShown');
       this.denyLocationPermission();
     } else {
       console.log('User cancelled denial');
