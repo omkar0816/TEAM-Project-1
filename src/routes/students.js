@@ -58,26 +58,27 @@ router.post('/location/grant-permission', async (req, res) => {
   }
 });
 
+router.post('/location/deny-permission', async (req, res) => {
+  try {
+    if (!req.session.userId || req.session.role !== 'student') {
+      return res.status(401).json({ authenticated: false });
+    }
 
     const ipAddress = req.ip || req.connection.remoteAddress;
     await LocationService.denyLocationPermission(req.session.userId, 'student');
     await LocationService.logLocationAction(
-      req.session.userId,
-      'student',
-      null,
-      null,
-      null,
-      'login',
-      ipAddress,
-      false,
-      'Permission denied'
+      req.session.userId, 'student', null, null, null,
+      'login', ipAddress, false, 'Permission denied'
     );
 
     req.session.destroy(() => {
       res.json({ success: true, message: 'Location permission required', redirectTo: '/' });
     });
+  } catch (error) {
     console.error('Error denying student location permission:', error);
     res.status(500).json({ error: 'Failed to deny permission' });
+  }
+});
 
 router.post('/validate-attendance-location', async (req, res) => {
   try {
